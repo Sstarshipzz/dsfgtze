@@ -175,6 +175,9 @@ WAITING_ORDER_BUTTON_CONFIG = "WAITING_ORDER_BUTTON_CONFIG"
 WAITING_WELCOME_MESSAGE = "WAITING_WELCOME_MESSAGE"  # Ajout de cette ligne
 EDITING_CATEGORY = "EDITING_CATEGORY"
 WAITING_NEW_CATEGORY_NAME = "WAITING_NEW_CATEGORY_NAME"
+WAITING_BUTTON_TEXT = "WAITING_BUTTON_TEXT"
+WAITING_BUTTON_URL = "WAITING_BUTTON_URL"
+EDITING_BUTTON = "EDITING_BUTTON"
 
 # Charger le catalogue au démarrage
 CATALOG = load_catalog()
@@ -340,7 +343,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Nouveau clavier simplifié pour l'accueil
     keyboard = [
-        [InlineKeyboardButton("📋 MENU", callback_data="show_categories")]
+        [InlineKeyboardButton("📋 MENU", callback_data="show_categories")],
+        [InlineKeyboardButton("📱 RÉSEAUX", callback_data="show_networks")]
     ]
 
     # Définir le texte de bienvenue ici, avant les boutons
@@ -360,21 +364,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         contact_button = InlineKeyboardButton("📞 Contact", url=CONFIG['contact_url'])
     elif CONFIG.get('contact_username'):
         contact_button = InlineKeyboardButton("📞 Contact Telegram", url=f"https://t.me/{CONFIG['contact_username']}")
-
-    # Ajouter les boutons de contact et canaux
-    if contact_button:
-        keyboard.extend([
-            [
-                contact_button,
-                InlineKeyboardButton("💭 Canal telegram", url="https://t.me/ddladdesign"),
-            ],
-            [InlineKeyboardButton("🥔 Canal potato", url="https://doudlj.org/joinchat/5ZEmn25bOsTR7f-aYdvC0Q")]
-        ])
-    else:
-        keyboard.extend([
-            [InlineKeyboardButton("💭 Canal telegram", url="https://t.me/ddladdesign")],
-            [InlineKeyboardButton("🥔 Canal potato", url="https://doudlj.org/joinchat/5ZEmn25bOsTR7f-aYdvC0Q")]
-        ])
 
     try:
         # Vérifier si une image banner est configurée
@@ -456,6 +445,7 @@ async def show_admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("❌ Supprimer un produit", callback_data="delete_product")],
         [InlineKeyboardButton("✏️ Modifier une catégorie", callback_data="edit_category")],
         [InlineKeyboardButton("✏️ Modifier un produit", callback_data="edit_product")],
+        [InlineKeyboardButton("🔗 Gérer les boutons", callback_data="manage_buttons")],  # Nouveau bouton
         [InlineKeyboardButton(f"🔒 Code d'accès: {status_text}", callback_data="toggle_access_code")],
         [InlineKeyboardButton("📊 Statistiques", callback_data="show_stats")],
         [InlineKeyboardButton("📞 Modifier le contact", callback_data="edit_contact")],
@@ -2330,6 +2320,132 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     except Exception as e:
         print(f"Erreur dans le gestionnaire d'erreurs: {e}")
 
+async def show_networks_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Affiche le menu des réseaux sociaux"""
+    query = update.callback_query
+    
+    keyboard = []
+    # Charger les boutons personnalisés depuis CONFIG
+    custom_buttons = CONFIG.get('custom_buttons', {}).get('menu_buttons', [])
+    if custom_buttons:
+        for button in custom_buttons:
+            keyboard.append([InlineKeyboardButton(button['text'], url=button['value'])])
+    
+    # Ajouter le bouton de contact s'il existe
+    contact_button = None
+    if CONFIG.get('contact_url'):
+        contact_button = InlineKeyboardButton("📞 Contact", url=CONFIG['contact_url'])
+    elif CONFIG.get('contact_username'):
+        contact_button = InlineKeyboardButton("📞 Contact Telegram", url=f"https://t.me/{CONFIG['contact_username']}")
+    
+    if contact_button:
+        keyboard.append([contact_button])
+    
+    keyboard.append([InlineKeyboardButton("🔙 Retour", callback_data="back_to_main")])
+    
+    await query.edit_message_text(
+        "📱 Mes réseaux sociaux :",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+    
+    return CHOOSING
+
+async def manage_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Gère le menu des boutons sociaux"""
+    keyboard = [
+        [InlineKeyboardButton("➕ Ajouter un bouton", callback_data="add_social_button")],
+        [InlineKeyboardButton("❌ Supprimer un bouton", callback_data="delete_social_button")],
+        [InlineKeyboardButton("✏️ Modifier un bouton", callback_data="edit_social_button")],
+        [InlineKeyboardButton("🔙 Retour", callback_data="admin")]
+    ]
+
+    await update.callback_query.edit_message_text(
+        "🔗 Gestion des boutons sociaux\n\n"
+        "Choisissez une action :",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+    return CHOOSING
+
+async def add_social_button_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Commence le processus d'ajout d'un bouton"""
+    await update.callback_query.edit_message_text(
+        "Envoyez le texte qui sera affiché sur le bouton :\n"
+        "Par exemple : '💭 Mon Canal' ou '📱 Instagram'",
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton("🔙 Annuler", callback_data="manage_buttons")
+        ]])
+    )
+    return WAITING_BUTTON_TEXT
+
+async def handle_button_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Gère la réception du texte du bouton"""
+    context.user_data['temp_button_text'] = update.message.text
+    
+    # Supprimer le message de l'utilisateur
+    try:
+        await update.message.delete()
+    except Exception as e:
+        print(f"Erreur lors de la suppression du message: {e}")
+    
+    await update.message.reply_text(
+        "Maintenant, envoyez l'URL du bouton :\n"
+        "Elle doit commencer par http:// ou https://",
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton("🔙 Annuler", callback_data="manage_buttons")
+        ]])
+    )
+    return WAITING_BUTTON_URL
+
+async def handle_button_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Gère la réception de l'URL du bouton"""
+    url = update.message.text
+    
+    # Supprimer le message de l'utilisateur
+    try:
+        await update.message.delete()
+    except Exception as e:
+        print(f"Erreur lors de la suppression du message: {e}")
+    
+    if not url.startswith(('http://', 'https://')):
+        await update.message.reply_text(
+            "❌ L'URL doit commencer par http:// ou https://\n"
+            "Veuillez réessayer :"
+        )
+        return WAITING_BUTTON_URL
+    
+    # Initialiser la structure des boutons personnalisés si elle n'existe pas
+    if 'custom_buttons' not in CONFIG:
+        CONFIG['custom_buttons'] = {'menu_buttons': []}
+    
+    # Créer le nouveau bouton
+    new_button = {
+        "text": context.user_data['temp_button_text'],
+        "value": url
+    }
+    
+    # Ajouter le bouton à la configuration
+    CONFIG['custom_buttons']['menu_buttons'].append(new_button)
+    
+    # Sauvegarder dans config.json
+    with open('config/config.json', 'w', encoding='utf-8') as f:
+        json.dump(CONFIG, f, indent=4, ensure_ascii=False)
+    
+    success_message = await update.message.reply_text(
+        "✅ Bouton ajouté avec succès !",
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton("🔙 Retour au menu", callback_data="manage_buttons")
+        ]])
+    )
+    
+    # Attendre 3 secondes puis supprimer le message
+    await asyncio.sleep(3)
+    try:
+        await success_message.delete()
+    except:
+        pass
+    
+    return CHOOSING
+
 def main():
     """Fonction principale du bot"""
     try:
@@ -2365,6 +2481,17 @@ def main():
             states={
                 CHOOSING: [
                     CallbackQueryHandler(handle_normal_buttons),
+                    CallbackQueryHandler(manage_buttons, pattern='^manage_buttons$'),
+                    CallbackQueryHandler(add_social_button_start, pattern='^add_social_button$'),
+                    CallbackQueryHandler(show_networks_menu, pattern='^show_networks$'),
+                ],
+                WAITING_BUTTON_TEXT: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, handle_button_text),
+                    CallbackQueryHandler(manage_buttons, pattern='^manage_buttons$'),
+                ],
+                WAITING_BUTTON_URL: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, handle_button_url),
+                    CallbackQueryHandler(manage_buttons, pattern='^manage_buttons$'),
                 ],
                 WAITING_CATEGORY_NAME: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_category_name),
