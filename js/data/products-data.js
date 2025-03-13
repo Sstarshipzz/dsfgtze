@@ -96,3 +96,7 @@ const databaseContent = {
         }
     ]
 };
+
+databaseContent.products.forEach(product => {
+    product.image = `https://via.placeholder.com/300x300.png?text=${encodeURIComponent(product.name)}`;
+});
