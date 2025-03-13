@@ -2331,17 +2331,14 @@ async def show_networks_menu(update: Update, context: ContextTypes.DEFAULT_TYPE)
         for button in custom_buttons:
             keyboard.append([InlineKeyboardButton(button['text'], url=button['value'])])
     
-    # Ajouter le bouton de contact s'il existe
-    contact_button = None
-    if CONFIG.get('contact_url'):
-        contact_button = InlineKeyboardButton("📞 Contact", url=CONFIG['contact_url'])
-    elif CONFIG.get('contact_username'):
-        contact_button = InlineKeyboardButton("📞 Contact Telegram", url=f"https://t.me/{CONFIG['contact_username']}")
+    # Ajouter le bouton contact Telegram s'il est configuré
+    if CONFIG.get('contact_username'):
+        keyboard.append([
+            InlineKeyboardButton("📞 Contact Telegram", url=f"https://t.me/{CONFIG['contact_username']}")
+        ])
     
-    if contact_button:
-        keyboard.append([contact_button])
-    
-    keyboard.append([InlineKeyboardButton("🔙 Retour", callback_data="back_to_main")])
+    # Toujours ajouter le bouton retour
+    keyboard.append([InlineKeyboardButton("🔙 Retour", callback_data="start")])
     
     await query.edit_message_text(
         "📱 Mes réseaux sociaux :",
