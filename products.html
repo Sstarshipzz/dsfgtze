@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nos Produits CBD - CBD Shop</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/responsive.css">
+    <link rel="stylesheet" href="css/components/products.css">
+    <link rel="stylesheet" href="css/components/animations.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <header class="main-header">
+        <!-- Même navigation que index.html -->
+        <nav class="nav-container">
+            <div class="logo">
+                <img src="assets/images/logo.png" alt="CBD Shop Logo">
+            </div>
+            <div class="menu-toggle" id="mobile-menu">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="index.html">Accueil</a></li>
+                <li><a href="products.html" class="active">Produits</a></li>
+                <li><a href="about.html">À propos</a></li>
+                <li><a href="contact.html">Contact</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="products-page">
+        <div class="products-hero">
+            <h1>Nos Produits CBD</h1>
+            <p>Découvrez notre sélection de produits premium</p>
+        </div>
+
+        <section class="filters-section">
+            <div class="filters-container">
+                <div class="search-bar">
+                    <input type="text" id="search-products" placeholder="Rechercher un produit...">
+                    <i class="fas fa-search"></i>
+                </div>
+                
+                <div class="filter-options">
+                    <select id="category-filter">
+                        <option value="">Toutes les catégories</option>
+                        <option value="fleurs">Fleurs CBD</option>
+                        <option value="huiles">Huiles CBD</option>
+                        <option value="comestibles">Comestibles</option>
+                        <option value="cosmetiques">Cosmétiques</option>
+                    </select>
+
+                    <select id="sort-filter">
+                        <option value="popularity">Popularité</option>
+                        <option value="price-asc">Prix croissant</option>
+                        <option value="price-desc">Prix décroissant</option>
+                        <option value="name">Nom A-Z</option>
+                    </select>
+                </div>
+            </div>
+        </section>
+
+        <section class="products-grid-section">
+            <div class="products-container" id="products-container">
+                <!-- Les produits seront chargés dynamiquement ici via JavaScript -->
+            </div>
+        </section>
+
+        <div class="product-modal" id="product-modal">
+            <div class="modal-content">
+                <span class="close-modal">&times;</span>
+                <div class="modal-product-details">
+                    <!-- Détails du produit chargés dynamiquement -->
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <!-- Même footer que index.html -->
+        <div class="footer-content">
+            <div class="footer-section">
+                <h3>CBD Shop</h3>
+                <p>Votre boutique de confiance pour le CBD premium.</p>
+            </div>
+            <div class="footer-section">
+                <h3>Liens rapides</h3>
+                <ul>
+                    <li><a href="products.html">Produits</a></li>
+                    <li><a href="about.html">À propos</a></li>
+                    <li><a href="contact.html">Contact</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h3>Contact</h3>
+                <p>Email: contact@cbdshop.com</p>
+                <p>Tél: 01 23 45 67 89</p>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2025 CBD Shop. Tous droits réservés.</p>
+        </div>
+    </footer>
+
+    <script src="js/data/products-data.js"></script>
+    <script src="js/main.js"></script>
+    <script src="js/components/products.js"></script>
+</body>
+</html>
