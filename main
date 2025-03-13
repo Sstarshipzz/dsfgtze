@@ -175,6 +175,7 @@ WAITING_ORDER_BUTTON_CONFIG = "WAITING_ORDER_BUTTON_CONFIG"
 WAITING_WELCOME_MESSAGE = "WAITING_WELCOME_MESSAGE"  # Ajout de cette ligne
 EDITING_CATEGORY = "EDITING_CATEGORY"
 WAITING_NEW_CATEGORY_NAME = "WAITING_NEW_CATEGORY_NAME"
+WAITING_INFO_MESSAGE = "WAITING_INFO_MESSAGE"
 
 # Charger le catalogue au démarrage
 CATALOG = load_catalog()
@@ -355,7 +356,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Ajouter les boutons de contact et réseaux en colonne
     keyboard.extend([
         [InlineKeyboardButton("🌐 Réseaux", callback_data="show_networks")],
-        [InlineKeyboardButton("📞 Contact Telegram", url=f"https://t.me/{CONFIG['contact_username']}")]
+        [InlineKeyboardButton("📞 Contact Telegram", url=f"https://t.me/{CONFIG['contact_username']}")],
+        [InlineKeyboardButton("ℹ️ Information", callback_data="show_info")]
+
 
     ])
 
@@ -475,6 +478,7 @@ async def show_admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("🛒 Modifier bouton Commander", callback_data="edit_order_button")],
         [InlineKeyboardButton("🏠 Modifier message d'accueil", callback_data="edit_welcome")],  
         [InlineKeyboardButton("🖼️ Modifier image bannière", callback_data="edit_banner_image")],
+        [InlineKeyboardButton("ℹ️ Modifier les informations", callback_data="edit_info")],
         [InlineKeyboardButton("🔙 Retour à l'accueil", callback_data="back_to_home")]
     ]
 
@@ -510,6 +514,76 @@ async def show_admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     return CHOOSING
+
+async def show_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Affiche le message d'information"""
+    query = update.callback_query
+    await query.answer()
+
+    info_text = CONFIG.get('info_message', 
+        "ℹ️ Aucune information n'a été configurée.\n"
+        "Les administrateurs peuvent ajouter des informations depuis le menu admin."
+    )
+
+    keyboard = [[InlineKeyboardButton("🔙 Retour", callback_data="back_to_home")]]
+
+    await query.edit_message_text(
+        text=info_text,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode='HTML'
+    )
+    return CHOOSING
+
+async def edit_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Démarre l'édition du message d'information"""
+    query = update.callback_query
+    await query.answer()
+
+    current_info = CONFIG.get('info_message', "Aucune information configurée.")
+    
+    await query.edit_message_text(
+        "📝 Envoyez le nouveau message d'information :\n"
+        "Vous pouvez utiliser le formatage HTML pour mettre en forme votre texte.\n\n"
+        "Message actuel :\n"
+        f"{current_info}",
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton("🔙 Annuler", callback_data="admin")
+        ]]),
+        parse_mode='HTML'
+    )
+    return WAITING_INFO_MESSAGE
+
+async def handle_info_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Gère la réception du nouveau message d'information"""
+    new_info = update.message.text_html if hasattr(update.message, 'text_html') else update.message.text
+
+    # Sauvegarder le nouveau message dans la config
+    CONFIG['info_message'] = new_info
+    with open('config/config.json', 'w', encoding='utf-8') as f:
+        json.dump(CONFIG, f, indent=4)
+
+    # Supprimer le message de l'utilisateur et le message précédent
+    try:
+        await update.message.delete()
+        await context.bot.delete_message(
+            chat_id=update.effective_chat.id,
+            message_id=update.message.message_id - 1
+        )
+    except Exception as e:
+        print(f"Erreur lors de la suppression des messages : {e}")
+
+    # Message de confirmation
+    success_msg = await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text="✅ Message d'information mis à jour avec succès !",
+        parse_mode='HTML'
+    )
+
+    # Attendre 3 secondes et supprimer le message de confirmation
+    await asyncio.sleep(3)
+    await success_msg.delete()
+
+    return await show_admin_menu(update, context)
 
 async def handle_new_category_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Gère la modification du nom d'une catégorie"""
@@ -2424,6 +2498,10 @@ def main():
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_welcome_message),
                     CallbackQueryHandler(handle_normal_buttons)
                 ],
+                WAITING_INFO_MESSAGE: [  
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, handle_info_message),
+                    CallbackQueryHandler(handle_normal_buttons),
+                ],
                 WAITING_ORDER_BUTTON_CONFIG: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_order_button_config),
                     CallbackQueryHandler(handle_normal_buttons),
@@ -2464,6 +2542,8 @@ def main():
         application.add_handler(CommandHandler("gencode", admin_generate_code))
         application.add_handler(CommandHandler("listcodes", admin_list_codes))
         application.add_handler(conv_handler)
+        application.add_handler(CallbackQueryHandler(show_info, pattern="^show_info$"))
+        application.add_handler(CallbackQueryHandler(edit_info, pattern="^edit_info$"))
 
         # Démarrer le bot avec les paramètres optimisés
         print("Bot démarré...")
