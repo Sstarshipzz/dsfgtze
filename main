@@ -175,6 +175,9 @@ WAITING_ORDER_BUTTON_CONFIG = "WAITING_ORDER_BUTTON_CONFIG"
 WAITING_WELCOME_MESSAGE = "WAITING_WELCOME_MESSAGE"  # Ajout de cette ligne
 EDITING_CATEGORY = "EDITING_CATEGORY"
 WAITING_NEW_CATEGORY_NAME = "WAITING_NEW_CATEGORY_NAME"
+WAITING_BUTTON_TEXT = "WAITING_BUTTON_TEXT"
+WAITING_BUTTON_URL = "WAITING_BUTTON_URL"
+EDITING_BUTTON = "EDITING_BUTTON"
 
 # Charger le catalogue au démarrage
 CATALOG = load_catalog()
@@ -340,7 +343,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Nouveau clavier simplifié pour l'accueil
     keyboard = [
-        [InlineKeyboardButton("📋 MENU", callback_data="show_categories")]
+        [InlineKeyboardButton("📋 MENU", callback_data="show_categories")],
+        [InlineKeyboardButton("📱 RÉSEAUX", callback_data="show_networks")]
     ]
 
     # Définir le texte de bienvenue ici, avant les boutons
@@ -361,7 +365,31 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif CONFIG.get('contact_username'):
         contact_button = InlineKeyboardButton("📞 Contact Telegram", url=f"https://t.me/{CONFIG['contact_username']}")
 
-    # Ajouter les boutons de contact et canaux
+    if contact_button:
+        keyboard.append([contact_button])
+        # En cas d'erreur, envoyer au moins le menu
+        menu_message = await context.bot.send_message(
+            chat_id=chat_id,
+            text=welcome_text,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode='HTML'
+        )
+        context.user_data['menu_message_id'] = menu_message.message_id
+
+    return CHOOSING
+
+async def show_networks_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Affiche le menu des réseaux sociaux"""
+    query = update.callback_query
+    
+    # Configurer le bouton de contact comme dans votre fonction start()
+    contact_button = None
+    if CONFIG.get('contact_url'):
+        contact_button = InlineKeyboardButton("📞 Contact", url=CONFIG['contact_url'])
+    elif CONFIG.get('contact_username'):
+        contact_button = InlineKeyboardButton("📞 Contact Telegram", url=f"https://t.me/{CONFIG['contact_username']}")
+    
+    keyboard = []
     if contact_button:
         keyboard.extend([
             [
@@ -375,7 +403,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [
                 InlineKeyboardButton("🌐 Signal", url="https://signal.group/#CjQKIJNEETZNr9_LRMvShQbblk_NUdDyabA7e_eyUQY6-ptsEhBSpXex0cjIoOEYQ4H3D8K5"),
                 InlineKeyboardButton("👻 Snapchat", url="https://snapchat.com/t/0HumwTKi")
-            ]
+            ],
+            [InlineKeyboardButton("🔙 Retour", callback_data="back_to_main")]
         ])
     else:
         keyboard.extend([
@@ -389,37 +418,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ],
             [
                 InlineKeyboardButton("👻 Snapchat", url="https://snapchat.com/t/0HumwTKi")
-            ]
+            ],
+            [InlineKeyboardButton("🔙 Retour", callback_data="back_to_main")]
         ])
-
-    try:
-        # Vérifier si une image banner est configurée
-        if CONFIG.get('banner_image'):
-            banner_message = await context.bot.send_photo(
-                chat_id=chat_id,
-                photo=CONFIG['banner_image']
-            )
-            context.user_data['banner_message_id'] = banner_message.message_id
-
-        # Envoyer le menu d'accueil
-        menu_message = await context.bot.send_message(
-            chat_id=chat_id,
-            text=welcome_text,
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode='HTML'  
-        )
-        context.user_data['menu_message_id'] = menu_message.message_id
-        
-    except Exception as e:
-        print(f"Erreur lors du démarrage: {e}")
-        # En cas d'erreur, envoyer au moins le menu
-        menu_message = await context.bot.send_message(
-            chat_id=chat_id,
-            text=welcome_text,
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode='HTML'
-        )
-        context.user_data['menu_message_id'] = menu_message.message_id
+    
+    await query.edit_message_text(
+        "📱 Mes réseaux sociaux :",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
     
     return CHOOSING
 
@@ -472,6 +478,7 @@ async def show_admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("❌ Supprimer un produit", callback_data="delete_product")],
         [InlineKeyboardButton("✏️ Modifier une catégorie", callback_data="edit_category")],
         [InlineKeyboardButton("✏️ Modifier un produit", callback_data="edit_product")],
+        [InlineKeyboardButton("🔗 Gérer les boutons", callback_data="manage_buttons")],
         [InlineKeyboardButton(f"🔒 Code d'accès: {status_text}", callback_data="toggle_access_code")],
         [InlineKeyboardButton("📊 Statistiques", callback_data="show_stats")],
         [InlineKeyboardButton("📞 Modifier le contact", callback_data="edit_contact")],
@@ -512,6 +519,127 @@ async def show_admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode='Markdown'
         )
 
+    return CHOOSING
+
+async def manage_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Gère le menu des boutons sociaux"""
+    keyboard = [
+        [InlineKeyboardButton("➕ Ajouter un bouton", callback_data="add_social_button")],
+        [InlineKeyboardButton("❌ Supprimer un bouton", callback_data="delete_social_button")],
+        [InlineKeyboardButton("✏️ Modifier un bouton", callback_data="edit_social_button")],
+        [InlineKeyboardButton("🔙 Retour", callback_data="admin")]
+    ]
+
+    await update.callback_query.edit_message_text(
+        "🔗 Gestion des boutons sociaux\n\n"
+        "Choisissez une action :",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+    return CHOOSING
+
+# Handler pour l'ajout d'un nouveau bouton URL
+async def add_url_button_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Commence le processus d'ajout d'un bouton URL"""
+    await update.callback_query.edit_message_text(
+        "Envoyez le texte qui sera affiché sur le bouton :\n"
+        "Par exemple : '💭 Mon Canal' ou '📱 Instagram'",
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton("🔙 Annuler", callback_data="manage_buttons")
+        ]])
+    )
+    return WAITING_BUTTON_TEXT
+
+async def handle_button_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Gère la réception du texte du bouton"""
+    context.user_data['temp_button_text'] = update.message.text
+    await update.message.reply_text(
+        "Maintenant, envoyez l'URL du bouton :\n"
+        "Elle doit commencer par http:// ou https://",
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton("🔙 Annuler", callback_data="manage_buttons")
+        ]])
+    )
+    return WAITING_BUTTON_URL
+
+async def handle_button_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Gère la réception de l'URL du bouton"""
+    url = update.message.text
+    
+    if not url.startswith(('http://', 'https://')):
+        await update.message.reply_text(
+            "❌ L'URL doit commencer par http:// ou https://\n"
+            "Veuillez réessayer :"
+        )
+        return WAITING_BUTTON_URL
+    
+    # Générer un nouvel ID unique
+    new_id = str(len(CONFIG.get('custom_buttons', {}).get('menu_buttons', [])) + 1)
+    
+    # Créer le nouveau bouton
+    new_button = {
+        "id": new_id,
+        "text": context.user_data['temp_button_text'],
+        "type": "url",
+        "value": url
+    }
+    
+    # Ajouter à la configuration
+    if 'custom_buttons' not in CONFIG:
+        CONFIG['custom_buttons'] = {'menu_buttons': [], 'text_buttons': []}
+    CONFIG['custom_buttons']['menu_buttons'].append(new_button)
+    
+    # Sauvegarder la configuration
+    with open('config/config.json', 'w', encoding='utf-8') as f:
+        json.dump(CONFIG, f, indent=4)
+    
+    await update.message.reply_text(
+        "✅ Bouton ajouté avec succès !",
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton("🔙 Retour au menu", callback_data="manage_buttons")
+        ]])
+    )
+    return CHOOSING
+
+
+async def add_text_button_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Commence le processus d'ajout d'un bouton texte"""
+    await update.callback_query.edit_message_text(
+        "Envoyez le texte qui sera affiché sur le bouton :\n"
+        "Par exemple : 'ℹ️ Information' ou '📝 Règles'",
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton("🔙 Annuler", callback_data="manage_buttons")
+        ]])
+    )
+    return WAITING_TEXT_BUTTON_LABEL
+
+async def handle_text_button_content(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Gère la réception du contenu du bouton texte"""
+    text_content = update.message.text_html
+    
+    # Créer le nouveau bouton
+    new_id = str(len(CONFIG.get('custom_buttons', {}).get('text_buttons', [])) + 1)
+    new_button = {
+        "id": new_id,
+        "text": context.user_data['temp_button_text'],
+        "type": "text",
+        "value": text_content
+    }
+    
+    # Ajouter à la configuration
+    if 'custom_buttons' not in CONFIG:
+        CONFIG['custom_buttons'] = {'menu_buttons': [], 'text_buttons': []}
+    CONFIG['custom_buttons']['text_buttons'].append(new_button)
+    
+    # Sauvegarder la configuration
+    with open('config/config.json', 'w', encoding='utf-8') as f:
+        json.dump(CONFIG, f, indent=4)
+    
+    await update.message.reply_text(
+        "✅ Bouton texte ajouté avec succès !",
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton("🔙 Retour au menu", callback_data="manage_buttons")
+        ]])
+    )
     return CHOOSING
 
 async def handle_new_category_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1114,45 +1242,22 @@ async def handle_normal_buttons(update: Update, context: ContextTypes.DEFAULT_TY
     await query.answer()
     await admin_features.register_user(update.effective_user)
 
-    if query.data == "reseaux":
+    if query.data == "manage_buttons":
+        return await manage_buttons(update, context)
+    elif query.data == "show_networks":
         keyboard = []
-        if contact_button:
-            keyboard.extend([
-                [
-                    contact_button,
-                    InlineKeyboardButton("💭 Canal telegram", url="https://t.me/+aHbA9_8tdTQwYThk")
-                ],
-                [
-                    InlineKeyboardButton("🥔 Contact potato", url="https://doudlj.org/joinchat/5ZEmn25bOsTR7f-aYdvC0Q"),
-                    InlineKeyboardButton("📱 Instagram", url="https://www.instagram.com/christiandry.54?igsh=MWU1dXNrbXdpMzllNA%3D%3D&utm_source=qr")
-                ],
-                [
-                    InlineKeyboardButton("🌐 Signal", url="https://signal.group/#CjQKIJNEETZNr9_LRMvShQbblk_NUdDyabA7e_eyUQY6-ptsEhBSpXex0cjIoOEYQ4H3D8K5"),
-                    InlineKeyboardButton("👻 Snapchat", url="https://snapchat.com/t/0HumwTKi")
-                ],
-                [InlineKeyboardButton("🔙 Retour", callback_data="menu")]  # Bouton retour
-            ])
-        else:
-            keyboard.extend([
-                [
-                    InlineKeyboardButton("💭 Canal telegram", url="https://t.me/+aHbA9_8tdTQwYThk"),
-                    InlineKeyboardButton("🥔 Contact potato", url="https://dlj199.org/christianDry547")
-                ],
-                [
-                    InlineKeyboardButton("📱 Instagram", url="https://www.instagram.com/christiandry.54?igsh=MWU1dXNrbXdpMzllNA%3D%3D&utm_source=qr"),
-                    InlineKeyboardButton("🌐 Signal", url="https://signal.group/#CjQKIJNEETZNr9_LRMvShQbblk_NUdDyabA7e_eyUQY6-ptsEhBSpXex0cjIoOEYQ4H3D8K5")
-                ],
-                [
-                    InlineKeyboardButton("👻 Snapchat", url="https://snapchat.com/t/0HumwTKi")
-                ],
-                [InlineKeyboardButton("🔙 Retour", callback_data="menu")]  # Bouton retour
-            ])
+        # Charger les boutons personnalisés depuis CONFIG
+        custom_buttons = CONFIG.get('custom_buttons', {}).get('menu_buttons', [])
+        for button in custom_buttons:
+            keyboard.append([InlineKeyboardButton(button['text'], url=button['value'])])
         
-        reply_markup = InlineKeyboardMarkup(keyboard)
+        keyboard.append([InlineKeyboardButton("🔙 Retour", callback_data="menu_message_id")])
+        
         await query.edit_message_text(
-            text="📱 Mes réseaux sociaux :",
-            reply_markup=reply_markup
+            "📱 Réseaux sociaux",
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
+        return CHOOSING
 
     if query.data == "admin":
         if str(update.effective_user.id) in ADMIN_IDS:
@@ -2240,9 +2345,9 @@ async def handle_normal_buttons(update: Update, context: ContextTypes.DEFAULT_TY
                 "📋 Cliquez sur MENU pour voir les catégories"
             )
 
-            # Nouveau clavier simplifié pour l'accueil
             keyboard = [
-                [InlineKeyboardButton("📋 MENU", callback_data="show_categories")]
+                [InlineKeyboardButton("📋 MENU", callback_data="show_categories")],
+                [InlineKeyboardButton("📱 RÉSEAUX", callback_data="show_networks")]
             ]
 
             # Ajouter le bouton admin si l'utilisateur est administrateur
@@ -2256,36 +2361,9 @@ async def handle_normal_buttons(update: Update, context: ContextTypes.DEFAULT_TY
             elif CONFIG.get('contact_username'):
                 contact_button = InlineKeyboardButton("📞 Contact Telegram", url=f"https://t.me/{CONFIG['contact_username']}")
 
-            # Ajouter les boutons de contact et canaux
+            # Ajouter uniquement le bouton de contact s'il existe
             if contact_button:
-                keyboard.extend([
-                    [
-                        contact_button,
-                        InlineKeyboardButton("💭 Canal telegram", url="https://t.me/+aHbA9_8tdTQwYThk")
-                    ],
-                    [
-                        InlineKeyboardButton("🥔 Contact potato", url="https://doudlj.org/joinchat/5ZEmn25bOsTR7f-aYdvC0Q"),
-                        InlineKeyboardButton("📱 Instagram", url="https://www.instagram.com/christiandry.54?igsh=MWU1dXNrbXdpMzllNA%3D%3D&utm_source=qr")
-                    ],
-                    [
-                        InlineKeyboardButton("🌐 Signal", url="https://signal.group/#CjQKIJNEETZNr9_LRMvShQbblk_NUdDyabA7e_eyUQY6-ptsEhBSpXex0cjIoOEYQ4H3D8K5"),
-                        InlineKeyboardButton("👻 Snapchat", url="https://snapchat.com/t/0HumwTKi")
-                    ]
-                ])
-            else:
-                keyboard.extend([
-                    [
-                        InlineKeyboardButton("💭 Canal telegram", url="https://t.me/+aHbA9_8tdTQwYThk"),
-                        InlineKeyboardButton("🥔 Contact potato", url="https://dlj199.org/christianDry547")
-                    ],
-                    [
-                        InlineKeyboardButton("📱 Instagram", url="https://www.instagram.com/christiandry.54?igsh=MWU1dXNrbXdpMzllNA%3D%3D&utm_source=qr"),
-                        InlineKeyboardButton("🌐 Signal", url="https://signal.group/#CjQKIJNEETZNr9_LRMvShQbblk_NUdDyabA7e_eyUQY6-ptsEhBSpXex0cjIoOEYQ4H3D8K5")
-                    ],
-                    [
-                        InlineKeyboardButton("👻 Snapchat", url="https://snapchat.com/t/0HumwTKi")
-                    ]
-                ])
+                keyboard.append([contact_button])
 
             await query.message.edit_text(
                 text=welcome_text,
@@ -2306,7 +2384,6 @@ async def get_file_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"✅ Image banner enregistrée!\nFile ID: {file_id}"
         )
 
-
     # Récupérer le chat_id et le message
     if update.callback_query:
         chat_id = update.callback_query.message.chat_id
@@ -2315,7 +2392,8 @@ async def get_file_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Nouveau clavier simplifié pour l'accueil
     keyboard = [
-        [InlineKeyboardButton("📋 MENU", callback_data="show_categories")]
+        [InlineKeyboardButton("📋 MENU", callback_data="show_categories")],
+        [InlineKeyboardButton("📱 RÉSEAUX", callback_data="show_networks")]
     ]
 
     # Ajouter le bouton admin si l'utilisateur est administrateur
@@ -2329,36 +2407,9 @@ async def get_file_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif CONFIG.get('contact_username'):
         contact_button = InlineKeyboardButton("📞 Contact Telegram", url=f"https://t.me/{CONFIG['contact_username']}")
 
-    # Ajouter les boutons de contact et canaux
+    # Ajouter uniquement le bouton de contact s'il existe
     if contact_button:
-        keyboard.extend([
-            [
-                contact_button,
-                InlineKeyboardButton("💭 Canal telegram", url="https://t.me/+aHbA9_8tdTQwYThk")
-            ],
-            [
-                InlineKeyboardButton("🥔 Contact potato", url="https://doudlj.org/joinchat/5ZEmn25bOsTR7f-aYdvC0Q"),
-                InlineKeyboardButton("📱 Instagram", url="https://www.instagram.com/christiandry.54?igsh=MWU1dXNrbXdpMzllNA%3D%3D&utm_source=qr")
-            ],
-            [
-                InlineKeyboardButton("🌐 Signal", url="https://signal.group/#CjQKIJNEETZNr9_LRMvShQbblk_NUdDyabA7e_eyUQY6-ptsEhBSpXex0cjIoOEYQ4H3D8K5"),
-                InlineKeyboardButton("👻 Snapchat", url="https://snapchat.com/t/0HumwTKi")
-            ]
-        ])
-    else:
-        keyboard.extend([
-            [
-                InlineKeyboardButton("💭 Canal telegram", url="https://t.me/+aHbA9_8tdTQwYThk"),
-                InlineKeyboardButton("🥔 Contact potato", url="https://dlj199.org/christianDry547")
-            ],
-            [
-                InlineKeyboardButton("📱 Instagram", url="https://www.instagram.com/christiandry.54?igsh=MWU1dXNrbXdpMzllNA%3D%3D&utm_source=qr"),
-                InlineKeyboardButton("🌐 Signal", url="https://signal.group/#CjQKIJNEETZNr9_LRMvShQbblk_NUdDyabA7e_eyUQY6-ptsEhBSpXex0cjIoOEYQ4H3D8K5")
-            ],
-            [
-                InlineKeyboardButton("👻 Snapchat", url="https://snapchat.com/t/0HumwTKi")
-            ]
-        ])
+        keyboard.append([contact_button])
 
     try:
         if update.callback_query:
