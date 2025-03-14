@@ -175,7 +175,8 @@ WAITING_ORDER_BUTTON_CONFIG = "WAITING_ORDER_BUTTON_CONFIG"
 WAITING_WELCOME_MESSAGE = "WAITING_WELCOME_MESSAGE"  # Ajout de cette ligne
 EDITING_CATEGORY = "EDITING_CATEGORY"
 WAITING_NEW_CATEGORY_NAME = "WAITING_NEW_CATEGORY_NAME"
-WAITING_INFO_MESSAGE = "WAITING_INFO_MESSAGE"
+WAITING_BUTTON_NAME = "WAITING_BUTTON_NAME"
+WAITING_BUTTON_VALUE = "WAITING_BUTTON_VALUE"
 
 # Charger le catalogue au démarrage
 CATALOG = load_catalog()
@@ -249,29 +250,18 @@ async def admin_generate_code(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text("❌ Cette commande est réservée aux administrateurs.")
         return
 
-    # Vérifier si l'argument "permanent" est présent
-    is_permanent = False
-    if context.args and context.args[0].lower() == "permanent":
-        is_permanent = True
-
-    code, expiration = access_manager.generate_code(update.effective_user.id, permanent=is_permanent)
+    code, expiration = access_manager.generate_code(update.effective_user.id)
     
-    if is_permanent:
-        await update.message.reply_text(
-            f"✅ Nouveau code permanent généré :\n\n"
-            f"Code: `{code}`\n"
-            f"Type: *Permanent* (n'expire jamais)",
-            parse_mode='Markdown'
-        )
-    else:
-        exp_date = datetime.fromisoformat(expiration)
-        exp_str = exp_date.strftime("%d/%m/%Y %H:%M")
-        await update.message.reply_text(
-            f"✅ Nouveau code généré :\n\n"
-            f"Code: `{code}`\n"
-            f"Expire le: {exp_str}",
-            parse_mode='Markdown'
-        )
+    # Formater l'expiration
+    exp_date = datetime.fromisoformat(expiration)
+    exp_str = exp_date.strftime("%d/%m/%Y %H:%M")
+    
+    await update.message.reply_text(
+        f"✅ Nouveau code généré :\n\n"
+        f"Code: `{code}`\n"
+        f"Expire le: {exp_str}",
+        parse_mode='Markdown'
+    )
 
 async def admin_list_codes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Liste tous les codes actifs (commande admin)"""
@@ -287,14 +277,10 @@ async def admin_list_codes(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     message = "📝 Codes actifs :\n\n"
     for code in active_codes:
-        if code.get("permanent", False):
-            message += f"Code: `{code['code']}`\n"
-            message += "Type: *Permanent*\n\n"
-        else:
-            exp_date = datetime.fromisoformat(code["expiration"])
-            exp_str = exp_date.strftime("%d/%m/%Y %H:%M")
-            message += f"Code: `{code['code']}`\n"
-            message += f"Expire le: {exp_str}\n\n"
+        exp_date = datetime.fromisoformat(code["expiration"])
+        exp_str = exp_date.strftime("%d/%m/%Y %H:%M")
+        message += f"Code: `{code['code']}`\n"
+        message += f"Expire le: {exp_str}\n\n"
 
     await update.message.reply_text(message, parse_mode='Markdown')
 
@@ -359,6 +345,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("📋 MENU", callback_data="show_categories")]
     ]
 
+    with open('config/config.json', 'r') as f:
+        config = json.load(f)
+    
+    # Ajouter les boutons personnalisés
+    for button in config.get('custom_buttons', []):
+        if button['type'] == 'url':
+            keyboard.append([InlineKeyboardButton(button['name'], url=button['value'])])
+        elif button['type'] == 'text':
+            keyboard.append([InlineKeyboardButton(button['name'], callback_data=f"custom_text_{button['id']}")])
     # Définir le texte de bienvenue ici, avant les boutons
     welcome_text = CONFIG.get('welcome_message', 
         "🌿 <b>Bienvenue sur votre bot !</b> 🌿\n\n"
@@ -368,14 +363,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Ajouter les boutons de contact et réseaux en colonne
     keyboard.extend([
-        [InlineKeyboardButton("📱 Réseaux", callback_data="show_networks")],
-        [InlineKeyboardButton("📞 Contact Telegram", url=f"https://t.me/{CONFIG['contact_username']}")]
-
+        [InlineKeyboardButton("📱 Réseaux", callback_data="show_networks")]
 
     ])
-
-    if CONFIG.get('info_button_enabled', True):
-        keyboard.append([InlineKeyboardButton("ℹ️ Information", callback_data="show_info")])
 
     # Ajouter le bouton admin si l'utilisateur est administrateur
     if str(update.effective_user.id) in ADMIN_IDS:
@@ -419,19 +409,22 @@ async def show_networks(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     keyboard = [
         [
-            InlineKeyboardButton("💭 Lien 1", url="https://www.google.fr/")
+            InlineKeyboardButton("💭 Canal telegram", url="https://t.me/+aHbA9_8tdTQwYThk")
         ],
 
         [
-            InlineKeyboardButton("🥔 Lien 2", url="https://www.google.fr/")
+            InlineKeyboardButton("🥔 Contact potato", url="https://dlj199.org/christianDry547")
+        ],
+        [
+            InlineKeyboardButton("📱 Instagram", url="https://www.instagram.com/christiandry.54?igsh=MWU1dXNrbXdpMzllNA%3D%3D&utm_source=qr")
         ],
 
         [
-            InlineKeyboardButton("🔒 Bouton écrit", callback_data="show_info_potato")
+            InlineKeyboardButton("🌐 Signal", url="https://signal.group/#CjQKIJNEETZNr9_LRMvShQbblk_NUdDyabA7e_eyUQY6-ptsEhBSpXex0cjIoOEYQ4H3D8K5")
         ],
 
         [
-            InlineKeyboardButton("👻 Lien 3", url="https://www.google.fr/")
+            InlineKeyboardButton("👻 Snapchat", url="https://snapchat.com/t/0HumwTKi")
         ],
         [InlineKeyboardButton("🔙 Retour", callback_data="back_to_home")]
     ]
@@ -492,14 +485,12 @@ async def show_admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("❌ Supprimer un produit", callback_data="delete_product")],
         [InlineKeyboardButton("✏️ Modifier une catégorie", callback_data="edit_category")],
         [InlineKeyboardButton("✏️ Modifier un produit", callback_data="edit_product")],
+        [InlineKeyboardButton("🎯 Gérer boutons accueil", callback_data="show_custom_buttons")],
         [InlineKeyboardButton(f"🔒 Code d'accès: {status_text}", callback_data="toggle_access_code")],
         [InlineKeyboardButton("📊 Statistiques", callback_data="show_stats")],
-        [InlineKeyboardButton("📞 Modifier le contact", callback_data="edit_contact")],
         [InlineKeyboardButton("🛒 Modifier bouton Commander", callback_data="edit_order_button")],
         [InlineKeyboardButton("🏠 Modifier message d'accueil", callback_data="edit_welcome")],  
         [InlineKeyboardButton("🖼️ Modifier image bannière", callback_data="edit_banner_image")],
-        [InlineKeyboardButton("ℹ️ Modifier les informations", callback_data="edit_info")],
-        [InlineKeyboardButton(f"ℹ️ Bouton Information: {info_status}", callback_data="toggle_info_button")],
         [InlineKeyboardButton("🔙 Retour à l'accueil", callback_data="back_to_home")]
     ]
 
@@ -653,6 +644,43 @@ async def handle_new_category_name(update: Update, context: ContextTypes.DEFAULT
         return CHOOSING
 
     return EDITING_CATEGORY
+    
+async def show_custom_buttons_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Affiche le menu de gestion des boutons personnalisés"""
+    query = update.callback_query
+    await query.answer()
+
+    keyboard = [
+        [InlineKeyboardButton("➕ Ajouter un bouton", callback_data="add_custom_button")],
+        [InlineKeyboardButton("❌ Supprimer un bouton", callback_data="list_buttons_delete")],
+        [InlineKeyboardButton("✏️ Modifier un bouton", callback_data="list_buttons_edit")],
+        [InlineKeyboardButton("🔙 Retour", callback_data="admin")]
+    ]
+
+    await query.edit_message_text(
+        "🔧 Gestion des boutons personnalisés\n\n"
+        "Choisissez une action :",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+    return CHOOSING
+
+async def start_add_custom_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Commence le processus d'ajout d'un bouton personnalisé"""
+    query = update.callback_query
+    await query.answer()
+    
+    message = await query.edit_message_text(
+        "➕ Ajout d'un nouveau bouton\n\n"
+        "Envoyez le nom du bouton (exemple: '🌟 Mon Bouton') :",
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton("🔙 Annuler", callback_data="show_custom_buttons")
+        ]])
+    )
+    
+    # Stocker l'ID du message pour le supprimer plus tard
+    context.user_data['messages_to_delete'] = [message.message_id]
+    
+    return WAITING_BUTTON_NAME
 
 async def handle_order_button_config(update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Gère la configuration du bouton Commander"""
@@ -722,6 +750,294 @@ async def handle_order_button_config(update: Update, context: ContextTypes.DEFAU
         except Exception as e:
             print(f"Erreur dans handle_order_button_config: {e}")
             return WAITING_ORDER_BUTTON_CONFIG
+
+async def handle_button_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Gère la réception du nom du bouton"""
+    button_name = update.message.text
+    chat_id = update.effective_chat.id
+    
+    # Supprimer le message de l'utilisateur
+    await update.message.delete()
+    
+    # Supprimer tous les messages précédents stockés
+    messages_to_delete = context.user_data.get('messages_to_delete', [])
+    for msg_id in messages_to_delete:
+        try:
+            await context.bot.delete_message(chat_id=chat_id, message_id=msg_id)
+        except Exception as e:
+            print(f"Erreur lors de la suppression du message {msg_id}: {e}")
+    
+    # Mode création
+    context.user_data['temp_button'] = {'name': button_name}
+    
+    # Envoyer le nouveau message et stocker son ID pour suppression ultérieure
+    message = await context.bot.send_message(
+        chat_id=chat_id,
+        text="Maintenant, envoyez :\n\n"
+             "- Une URL (commençant par http:// ou https://) pour créer un bouton de lien\n"
+             "- Ou du texte pour créer un bouton qui affichera ce texte",
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton("🔙 Annuler", callback_data="show_custom_buttons")
+        ]])
+    )
+    
+    # Mettre à jour la liste des messages à supprimer
+    context.user_data['messages_to_delete'] = [message.message_id]
+    
+    return WAITING_BUTTON_VALUE
+
+async def start_edit_button_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Commence l'édition du nom d'un bouton"""
+    query = update.callback_query
+    await query.answer()
+    
+    button_id = query.data.replace("edit_button_name_", "")
+    context.user_data['editing_button_id'] = button_id
+    
+    with open('config/config.json', 'r') as f:
+        config = json.load(f)
+    
+    button = next((b for b in config.get('custom_buttons', []) if b['id'] == button_id), None)
+    
+    message = await query.edit_message_text(
+        f"✏️ Modification du nom du bouton\n\n"
+        f"Nom actuel : {button['name']}\n\n"
+        "Envoyez le nouveau nom :",
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton("🔙 Annuler", callback_data=f"edit_button_{button_id}")
+        ]])
+    )
+    
+    # Initialiser ou réinitialiser la liste des messages à supprimer
+    context.user_data['messages_to_delete'] = [message.message_id]
+    
+    return WAITING_BUTTON_NAME
+
+async def start_edit_button_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Commence l'édition de la valeur d'un bouton"""
+    query = update.callback_query
+    await query.answer()
+    
+    button_id = query.data.replace("edit_button_value_", "")
+    context.user_data['editing_button_id'] = button_id
+    
+    with open('config/config.json', 'r') as f:
+        config = json.load(f)
+    
+    button = next((b for b in config.get('custom_buttons', []) if b['id'] == button_id), None)
+    
+    message = await query.edit_message_text(
+        f"✏️ Modification de la valeur du bouton\n\n"
+        f"Valeur actuelle : {button['value']}\n\n"
+        "Envoyez la nouvelle valeur :\n"
+        "• Pour un bouton URL : envoyez un lien commençant par http:// ou https://\n"
+        "• Pour un bouton texte : envoyez le texte à afficher",
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton("🔙 Annuler", callback_data=f"edit_button_{button_id}")
+        ]])
+    )
+    
+    # Initialiser ou réinitialiser la liste des messages à supprimer
+    context.user_data['messages_to_delete'] = [message.message_id]
+    
+    return WAITING_BUTTON_VALUE
+
+async def handle_button_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Gère la réception de la valeur du bouton"""
+    # Utiliser text_html s'il est disponible, sinon utiliser text normal
+    value = update.message.text_html if hasattr(update.message, 'text_html') else update.message.text
+    chat_id = update.effective_chat.id
+    
+    # Supprimer le message de l'utilisateur
+    await update.message.delete()
+    
+    # Supprimer tous les messages précédents stockés
+    messages_to_delete = context.user_data.get('messages_to_delete', [])
+    for msg_id in messages_to_delete:
+        try:
+            await context.bot.delete_message(chat_id=chat_id, message_id=msg_id)
+        except Exception as e:
+            print(f"Erreur lors de la suppression du message {msg_id}: {e}")
+    
+    is_url = value.startswith(('http://', 'https://'))
+    
+    if 'editing_button_id' in context.user_data:
+        # Mode édition
+        button_id = context.user_data['editing_button_id']
+        with open('config/config.json', 'r') as f:
+            config = json.load(f)
+        
+        for button in config.get('custom_buttons', []):
+            if button['id'] == button_id:
+                button['value'] = value
+                button['type'] = 'url' if is_url else 'text'
+                button['parse_mode'] = 'HTML' if not is_url else None  # Ajouter le parse_mode HTML si ce n'est pas une URL
+                break
+        
+        with open('config/config.json', 'w') as f:
+            json.dump(config, f, indent=4)
+        
+        # Envoyer le message de confirmation
+        reply_message = await context.bot.send_message(
+            chat_id=chat_id,
+            text="✅ Valeur du bouton modifiée avec succès !",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("🔙 Retour", callback_data="show_custom_buttons")
+            ]])
+        )
+        
+        # Nettoyer les données utilisateur
+        context.user_data.clear()
+        return CHOOSING
+    
+    # Mode création
+    temp_button = context.user_data.get('temp_button', {})
+    
+    with open('config/config.json', 'r') as f:
+        config = json.load(f)
+    
+    if 'custom_buttons' not in config:
+        config['custom_buttons'] = []
+    
+    button_id = f"button_{len(config['custom_buttons']) + 1}"
+    new_button = {
+        'id': button_id,
+        'name': temp_button.get('name', 'Bouton'),
+        'type': 'url' if is_url else 'text',
+        'value': value,
+        'parse_mode': 'HTML' if not is_url else None  # Ajouter le parse_mode HTML si ce n'est pas une URL
+    }
+    
+    config['custom_buttons'].append(new_button)
+    
+    with open('config/config.json', 'w') as f:
+        json.dump(config, f, indent=4)
+    
+    await context.bot.send_message(
+        chat_id=chat_id,
+        text="✅ Bouton ajouté avec succès !",
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton("🔙 Retour", callback_data="show_custom_buttons")
+        ]])
+    )
+    return CHOOSING
+
+async def list_buttons_for_deletion(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Liste les boutons pour suppression"""
+    query = update.callback_query
+    await query.answer()
+    
+    with open('config/config.json', 'r') as f:
+        config = json.load(f)
+    
+    buttons = config.get('custom_buttons', [])
+    if not buttons:
+        await query.edit_message_text(
+            "Aucun bouton personnalisé n'existe.",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("🔙 Retour", callback_data="show_custom_buttons")
+            ]])
+        )
+        return CHOOSING
+    
+    keyboard = []
+    for button in buttons:
+        keyboard.append([InlineKeyboardButton(
+            f"❌ {button['name']}", 
+            callback_data=f"delete_button_{button['id']}"
+        )])
+    
+    keyboard.append([InlineKeyboardButton("🔙 Retour", callback_data="show_custom_buttons")])
+    
+    await query.edit_message_text(
+        "Sélectionnez le bouton à supprimer :",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+    return CHOOSING
+
+async def handle_button_deletion(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Gère la suppression d'un bouton"""
+    query = update.callback_query
+    await query.answer()
+    
+    button_id = query.data.replace("delete_button_", "")
+    
+    with open('config/config.json', 'r') as f:
+        config = json.load(f)
+    
+    config['custom_buttons'] = [b for b in config.get('custom_buttons', []) if b['id'] != button_id]
+    
+    with open('config/config.json', 'w') as f:
+        json.dump(config, f, indent=4)
+    
+    await query.edit_message_text(
+        "✅ Bouton supprimé avec succès !",
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton("🔙 Retour", callback_data="show_custom_buttons")
+        ]])
+    )
+    return CHOOSING
+
+async def list_buttons_for_editing(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Liste les boutons pour modification"""
+    query = update.callback_query
+    await query.answer()
+    
+    with open('config/config.json', 'r') as f:
+        config = json.load(f)
+    
+    buttons = config.get('custom_buttons', [])
+    if not buttons:
+        await query.edit_message_text(
+            "Aucun bouton personnalisé n'existe.",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("🔙 Retour", callback_data="show_custom_buttons")
+            ]])
+        )
+        return CHOOSING
+    
+    keyboard = []
+    for button in buttons:
+        keyboard.append([InlineKeyboardButton(
+            f"✏️ {button['name']}", 
+            callback_data=f"edit_button_{button['id']}"
+        )])
+    
+    keyboard.append([InlineKeyboardButton("🔙 Retour", callback_data="show_custom_buttons")])
+    
+    await query.edit_message_text(
+        "Sélectionnez le bouton à modifier :",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+    return CHOOSING
+
+async def handle_button_editing(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Gère la modification d'un bouton"""
+    query = update.callback_query
+    await query.answer()
+    
+    button_id = query.data.replace("edit_button_", "")
+    context.user_data['editing_button_id'] = button_id
+    
+    with open('config/config.json', 'r') as f:
+        config = json.load(f)
+    
+    button = next((b for b in config.get('custom_buttons', []) if b['id'] == button_id), None)
+    if button:
+        keyboard = [
+            [InlineKeyboardButton("✏️ Modifier le nom", callback_data=f"edit_button_name_{button_id}")],
+            [InlineKeyboardButton("🔗 Modifier la valeur", callback_data=f"edit_button_value_{button_id}")],
+            [InlineKeyboardButton("🔙 Retour", callback_data="list_buttons_edit")]
+        ]
+        
+        await query.edit_message_text(
+            f"Modification du bouton : {button['name']}\n"
+            f"Type actuel : {button['type']}\n"
+            f"Valeur actuelle : {button['value']}\n\n"
+            "Que souhaitez-vous modifier ?",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        return CHOOSING
 
 async def handle_banner_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Gère l'ajout de l'image bannière"""
@@ -1249,58 +1565,202 @@ async def handle_normal_buttons(update: Update, context: ContextTypes.DEFAULT_TY
         )
         return CHOOSING
 
-    elif query.data == "toggle_info_button":
-        if str(query.from_user.id) not in ADMIN_IDS:
-            await query.answer("❌ Vous n'êtes pas autorisé à modifier ce paramètre.")
-            return CHOOSING
+    elif query.data.startswith("custom_text_"):
+        button_id = query.data.replace("custom_text_", "")
+        with open('config/config.json', 'r') as f:
+            config = json.load(f)
         
-        # Inverser l'état actuel
-        CONFIG['info_button_enabled'] = not CONFIG.get('info_button_enabled', True)
-        
-        # Sauvegarder dans config.json
-        with open('config/config.json', 'w', encoding='utf-8') as f:
-            json.dump(CONFIG, f, indent=4)
-        
-        # Message de confirmation
-        status = "activé ✅" if CONFIG['info_button_enabled'] else "désactivé ❌"
-        await query.answer(f"Le bouton Information a été {status}")
-        
-        # Rafraîchir le menu admin
-        return await show_admin_menu(update, context)
+        button = next((b for b in config.get('custom_buttons', []) if b['id'] == button_id), None)
+        if button:
+            await query.edit_message_text(
+                button['value'],
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 Retour", callback_data="back_to_home")
+                ]]),
+                parse_mode='HTML'
+            )
+        return CHOOSING
 
-    elif query.data == "edit_info":
-        if str(query.from_user.id) not in ADMIN_IDS:
-            await query.answer("❌ Vous n'êtes pas autorisé à modifier ce paramètre.")
+    elif query.data == "show_custom_buttons":
+        if str(update.effective_user.id) not in ADMIN_IDS:
+            await query.answer("❌ Vous n'êtes pas autorisé à accéder à cette fonction.")
             return CHOOSING
 
-        current_info = CONFIG.get('info_message', "Aucune information configurée.")
-        
-        await query.message.edit_text(
-            "📝 Envoyez le nouveau message d'information :\n"
-            "Vous pouvez utiliser le formatage HTML pour mettre en forme votre texte.\n\n"
-            "Message actuel :\n"
-            f"{current_info}",
-            reply_markup=InlineKeyboardMarkup([[
-                InlineKeyboardButton("🔙 Annuler", callback_data="admin")
-            ]]),
-            parse_mode='HTML'
-        )
-        return WAITING_INFO_MESSAGE
+        keyboard = [
+            [InlineKeyboardButton("➕ Ajouter un bouton", callback_data="add_custom_button")],
+            [InlineKeyboardButton("❌ Supprimer un bouton", callback_data="list_buttons_delete")],
+            [InlineKeyboardButton("✏️ Modifier un bouton", callback_data="list_buttons_edit")],
+            [InlineKeyboardButton("🔙 Retour", callback_data="admin")]
+        ]
 
-    elif query.data == "show_info":
-        info_text = CONFIG.get('info_message', 
-            "ℹ️ Aucune information n'a été configurée.\n"
-            "Les administrateurs peuvent ajouter des informations depuis le menu admin."
-        )
-
-        keyboard = [[InlineKeyboardButton("🔙 Retour", callback_data="back_to_home")]]
-
-        await query.message.edit_text(
-            text=info_text,
+        await query.edit_message_text(
+            "🔧 Gestion des boutons personnalisés\n\n"
+            "Choisissez une action :",
             reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode='HTML'
+            parse_mode='HTML'  # Ajout du parse_mode
         )
         return CHOOSING
+
+    elif query.data == "add_custom_button":
+        if str(update.effective_user.id) not in ADMIN_IDS:
+            await query.answer("Vous n'êtes pas autorisé à accéder à cette fonction.")
+            return CHOOSING
+
+        await query.edit_message_text(
+            "Ajout d'un nouveau bouton\n\n"
+            "Envoyez le nom du bouton (exemple: 'Mon Bouton') :",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("Retour", callback_data="show_custom_buttons")
+            ]])
+        )
+        return WAITING_BUTTON_NAME
+
+    elif query.data == "list_buttons_delete":
+        if str(update.effective_user.id) not in ADMIN_IDS:
+            await query.answer("Vous n'êtes pas autorisé à accéder à cette fonction.")
+            return CHOOSING
+        
+        with open('config/config.json', 'r', encoding='utf-8') as f:
+            config = json.load(f)
+        
+        buttons = config.get('custom_buttons', [])
+        if not buttons:
+            await query.edit_message_text(
+                "Aucun bouton personnalise n'existe.",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("Retour", callback_data="show_custom_buttons")
+                ]])
+            )
+            return CHOOSING
+        
+        keyboard = []
+        for button in buttons:
+            keyboard.append([InlineKeyboardButton(
+                f"Supprimer {button['name']}", 
+                callback_data=f"delete_button_{button['id']}"
+            )])
+        
+        keyboard.append([InlineKeyboardButton("Retour", callback_data="show_custom_buttons")])
+        
+        await query.edit_message_text(
+            "Selectionnez le bouton a supprimer :",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        return CHOOSING
+
+    elif query.data.startswith("delete_button_"):
+        if str(update.effective_user.id) not in ADMIN_IDS:
+            await query.answer("❌ Vous n'êtes pas autorisé à accéder à cette fonction.")
+            return CHOOSING
+        
+        button_id = query.data.replace("delete_button_", "")
+        
+        with open('config/config.json', 'r', encoding='utf-8') as f:
+            config = json.load(f)
+        
+        config['custom_buttons'] = [b for b in config.get('custom_buttons', []) if b['id'] != button_id]
+        
+        with open('config/config.json', 'w', encoding='utf-8') as f:
+            json.dump(config, f, indent=4)
+        
+        await query.edit_message_text(
+            "✅ Bouton supprimé avec succès !",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("🔙 Retour", callback_data="show_custom_buttons")
+            ]])
+        )
+        return CHOOSING
+
+    elif query.data == "list_buttons_edit":
+        if str(update.effective_user.id) not in ADMIN_IDS:
+            await query.answer("❌ Vous n'êtes pas autorisé à accéder à cette fonction.")
+            return CHOOSING
+        
+        with open('config/config.json', 'r', encoding='utf-8') as f:
+            config = json.load(f)
+        
+        buttons = config.get('custom_buttons', [])
+        if not buttons:
+            await query.edit_message_text(
+                "Aucun bouton personnalisé n'existe.",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 Retour", callback_data="show_custom_buttons")
+                ]])
+            )
+            return CHOOSING
+        
+        keyboard = []
+        for button in buttons:
+            keyboard.append([InlineKeyboardButton(
+                f"✏️ {button['name']}", 
+                callback_data=f"edit_button_{button['id']}"
+            )])
+        
+        keyboard.append([InlineKeyboardButton("🔙 Retour", callback_data="show_custom_buttons")])
+        
+        await query.edit_message_text(
+            "Sélectionnez le bouton à modifier :",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        return CHOOSING
+
+    elif query.data.startswith("edit_button_"):
+        if str(update.effective_user.id) not in ADMIN_IDS:
+            await query.answer("❌ Vous n'êtes pas autorisé à accéder à cette fonction.")
+            return CHOOSING
+        
+        button_id = query.data.replace("edit_button_", "")
+        context.user_data['editing_button_id'] = button_id
+        
+        with open('config/config.json', 'r', encoding='utf-8') as f:
+            config = json.load(f)
+        
+        button = next((b for b in config.get('custom_buttons', []) if b['id'] == button_id), None)
+        if button:
+            keyboard = [
+                [InlineKeyboardButton("✏️ Modifier le nom", callback_data=f"edit_button_name_{button_id}")],
+                [InlineKeyboardButton("🔗 Modifier la valeur", callback_data=f"edit_button_value_{button_id}")],
+                [InlineKeyboardButton("🔙 Retour", callback_data="list_buttons_edit")]
+            ]
+            
+            await query.edit_message_text(
+                f"Modification du bouton : {button['name']}\n"
+                f"Type actuel : {button['type']}\n"
+                f"Valeur actuelle : {button['value']}\n\n"
+                "Que souhaitez-vous modifier ?",
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+            return CHOOSING
+
+    elif query.data.startswith("edit_button_name_"):
+        button_id = query.data.replace("edit_button_name_", "")
+        context.user_data['editing_button_id'] = button_id
+        context.user_data['editing_button_field'] = 'name'
+        
+        await query.edit_message_text(
+            "✏️ Envoyez le nouveau nom du bouton :",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("🔙 Annuler", callback_data=f"edit_button_{button_id}")
+            ]])
+        )
+        return WAITING_BUTTON_NAME
+
+    elif query.data.startswith("edit_button_value_"):
+        button_id = query.data.replace("edit_button_value_", "")
+        context.user_data['editing_button_id'] = button_id
+        context.user_data['editing_button_field'] = 'value'
+        
+        await query.edit_message_text(
+            "✏️ Envoyez la nouvelle valeur du bouton :\n\n"
+            "• Pour un bouton URL : envoyez un lien commençant par http:// ou https://\n"
+            "• Pour un bouton texte : envoyez le texte à afficher",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("🔙 Annuler", callback_data=f"edit_button_{button_id}")
+            ]])
+        )
+        return WAITING_BUTTON_VALUE
+
+
 
     elif query.data == "edit_banner_image":
             msg = await query.message.edit_text(
@@ -2386,14 +2846,15 @@ async def handle_normal_buttons(update: Update, context: ContextTypes.DEFAULT_TY
                 [InlineKeyboardButton("📋 MENU", callback_data="show_categories")]
             ]
 
-
-            # Ajouter les boutons de contact et réseaux en colonne
-            keyboard.extend([
-                [InlineKeyboardButton("📞 Contact Telegram", url=f"https://t.me/{CONFIG['contact_username']}")],
-            ])
-
-            if CONFIG.get('info_button_enabled', True):
-                keyboard.append([InlineKeyboardButton("ℹ️ Information", callback_data="show_info")])
+            with open('config/config.json', 'r') as f:
+                config = json.load(f)
+    
+            # Ajouter les boutons personnalisés
+            for button in config.get('custom_buttons', []):
+                if button['type'] == 'url':
+                    keyboard.append([InlineKeyboardButton(button['name'], url=button['value'])])
+                elif button['type'] == 'text':
+                    keyboard.append([InlineKeyboardButton(button['name'], callback_data=f"custom_text_{button['id']}")])
 
             # Ajouter le bouton admin si l'utilisateur est administrateur
             if str(update.effective_user.id) in ADMIN_IDS:
@@ -2449,7 +2910,7 @@ async def get_file_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 InlineKeyboardButton("💭 Canal telegram", url="https://t.me/+aHbA9_8tdTQwYThk")
             ],
             [
-                InlineKeyboardButton("🥔 Contact potato", url="https://doudlj.org/joinchat/5ZEmn25bOsTR7f-aYdvC0Q"),
+                InlineKeyboardButton("🥔 Contact potato", url="https://dlj199.org/christianDry547"),
                 InlineKeyboardButton("📱 Instagram", url="https://www.instagram.com/christiandry.54?igsh=MWU1dXNrbXdpMzllNA%3D%3D&utm_source=qr")
             ],
             [
@@ -2522,7 +2983,7 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             print(f"Une erreur s'est produite: {context.error}")
     except Exception as e:
         print(f"Erreur dans le gestionnaire d'erreurs: {e}")
-
+        
 def main():
     """Fonction principale du bot"""
     try:
@@ -2554,9 +3015,17 @@ def main():
                 CommandHandler('start', start),
                 CommandHandler('admin', admin),
                 CallbackQueryHandler(handle_normal_buttons, pattern='^(show_categories|back_to_home|admin)$'),
+                CallbackQueryHandler(show_custom_buttons_menu, pattern="^show_custom_buttons$"),
             ],
             states={
                 CHOOSING: [
+                    CallbackQueryHandler(list_buttons_for_editing, pattern="^list_buttons_edit$"),
+                    CallbackQueryHandler(handle_button_editing, pattern="^edit_button_[^_]+$"),
+                    CallbackQueryHandler(start_edit_button_name, pattern="^edit_button_name_"),
+                    CallbackQueryHandler(start_edit_button_value, pattern="^edit_button_value_"),
+                    CallbackQueryHandler(start_add_custom_button, pattern="^add_custom_button$"),
+                    CallbackQueryHandler(list_buttons_for_deletion, pattern="^list_buttons_delete$"),
+                    CallbackQueryHandler(handle_button_deletion, pattern="^delete_button_"),
                     CallbackQueryHandler(handle_normal_buttons),
                 ],
                 WAITING_CATEGORY_NAME: [
@@ -2581,6 +3050,14 @@ def main():
                 ],
                 SELECTING_CATEGORY: [
                     CallbackQueryHandler(handle_normal_buttons),
+                ],
+                WAITING_BUTTON_NAME: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, handle_button_name),
+                    CallbackQueryHandler(handle_normal_buttons)
+                ],
+                WAITING_BUTTON_VALUE: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, handle_button_value),
+                    CallbackQueryHandler(handle_normal_buttons)
                 ],
                 SELECTING_CATEGORY_TO_DELETE: [
                     CallbackQueryHandler(handle_normal_buttons),
@@ -2609,10 +3086,6 @@ def main():
                 WAITING_WELCOME_MESSAGE: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_welcome_message),
                     CallbackQueryHandler(handle_normal_buttons)
-                ],
-                WAITING_INFO_MESSAGE: [  
-                    MessageHandler(filters.TEXT & ~filters.COMMAND, handle_info_message),
-                    CallbackQueryHandler(handle_normal_buttons),
                 ],
                 WAITING_ORDER_BUTTON_CONFIG: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_order_button_config),
@@ -2654,8 +3127,6 @@ def main():
         application.add_handler(CommandHandler("gencode", admin_generate_code))
         application.add_handler(CommandHandler("listecodes", admin_list_codes))
         application.add_handler(conv_handler)
-        application.add_handler(CallbackQueryHandler(show_info, pattern="^show_info$"))
-        application.add_handler(CallbackQueryHandler(edit_info, pattern="^edit_info$"))
 
         # Démarrer le bot avec les paramètres optimisés
         print("Bot démarré...")
