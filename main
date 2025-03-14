@@ -249,18 +249,29 @@ async def admin_generate_code(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text("❌ Cette commande est réservée aux administrateurs.")
         return
 
-    code, expiration = access_manager.generate_code(update.effective_user.id)
+    # Vérifier si l'argument "permanent" est présent
+    is_permanent = False
+    if context.args and context.args[0].lower() == "permanent":
+        is_permanent = True
+
+    code, expiration = access_manager.generate_code(update.effective_user.id, permanent=is_permanent)
     
-    # Formater l'expiration
-    exp_date = datetime.fromisoformat(expiration)
-    exp_str = exp_date.strftime("%d/%m/%Y %H:%M")
-    
-    await update.message.reply_text(
-        f"✅ Nouveau code généré :\n\n"
-        f"Code: `{code}`\n"
-        f"Expire le: {exp_str}",
-        parse_mode='Markdown'
-    )
+    if is_permanent:
+        await update.message.reply_text(
+            f"✅ Nouveau code permanent généré :\n\n"
+            f"Code: `{code}`\n"
+            f"Type: *Permanent* (n'expire jamais)",
+            parse_mode='Markdown'
+        )
+    else:
+        exp_date = datetime.fromisoformat(expiration)
+        exp_str = exp_date.strftime("%d/%m/%Y %H:%M")
+        await update.message.reply_text(
+            f"✅ Nouveau code généré :\n\n"
+            f"Code: `{code}`\n"
+            f"Expire le: {exp_str}",
+            parse_mode='Markdown'
+        )
 
 async def admin_list_codes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Liste tous les codes actifs (commande admin)"""
@@ -276,10 +287,14 @@ async def admin_list_codes(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     message = "📝 Codes actifs :\n\n"
     for code in active_codes:
-        exp_date = datetime.fromisoformat(code["expiration"])
-        exp_str = exp_date.strftime("%d/%m/%Y %H:%M")
-        message += f"Code: `{code['code']}`\n"
-        message += f"Expire le: {exp_str}\n\n"
+        if code.get("permanent", False):
+            message += f"Code: `{code['code']}`\n"
+            message += "Type: *Permanent*\n\n"
+        else:
+            exp_date = datetime.fromisoformat(code["expiration"])
+            exp_str = exp_date.strftime("%d/%m/%Y %H:%M")
+            message += f"Code: `{code['code']}`\n"
+            message += f"Expire le: {exp_str}\n\n"
 
     await update.message.reply_text(message, parse_mode='Markdown')
 
@@ -351,16 +366,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📋 Cliquez sur MENU pour voir les catégories"
     )
 
-
-
     # Ajouter les boutons de contact et réseaux en colonne
     keyboard.extend([
-        [InlineKeyboardButton("🌐 Réseaux", callback_data="show_networks")],
-        [InlineKeyboardButton("📞 Contact Telegram", url=f"https://t.me/{CONFIG['contact_username']}")],
-        [InlineKeyboardButton("ℹ️ Information", callback_data="show_info")]
+        [InlineKeyboardButton("📱 Réseaux", callback_data="show_networks")],
+        [InlineKeyboardButton("📞 Contact Telegram", url=f"https://t.me/{CONFIG['contact_username']}")]
 
 
     ])
+
+    if CONFIG.get('info_button_enabled', True):
+        keyboard.append([InlineKeyboardButton("ℹ️ Information", callback_data="show_info")])
 
     # Ajouter le bouton admin si l'utilisateur est administrateur
     if str(update.effective_user.id) in ADMIN_IDS:
@@ -404,21 +419,25 @@ async def show_networks(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     keyboard = [
         [
-            InlineKeyboardButton("💭 Canal telegram", url="https://t.me/+aHbA9_8tdTQwYThk"),
-            InlineKeyboardButton("🥔 Contact potato", url="https://doudlj.org/joinchat/5ZEmn25bOsTR7f-aYdvC0Q")
+            InlineKeyboardButton("💭 Lien 1", url="https://www.google.fr/")
         ],
+
         [
-            InlineKeyboardButton("📱 Instagram", url="https://www.instagram.com/christiandry.54?igsh=MWU1dXNrbXdpMzllNA%3D%3D&utm_source=qr"),
-            InlineKeyboardButton("🌐 Signal", url="https://signal.group/#CjQKIJNEETZNr9_LRMvShQbblk_NUdDyabA7e_eyUQY6-ptsEhBSpXex0cjIoOEYQ4H3D8K5")
+            InlineKeyboardButton("🥔 Lien 2", url="https://www.google.fr/")
         ],
+
         [
-            InlineKeyboardButton("👻 Snapchat", url="https://snapchat.com/t/0HumwTKi")
+            InlineKeyboardButton("🔒 Bouton écrit", callback_data="show_info_potato")
+        ],
+
+        [
+            InlineKeyboardButton("👻 Lien 3", url="https://www.google.fr/")
         ],
         [InlineKeyboardButton("🔙 Retour", callback_data="back_to_home")]
     ]
 
     await query.edit_message_text(
-        "🌐 Choisissez un réseau social :",
+        "🌐 Voici nos réseaux :",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
     return CHOOSING
@@ -464,6 +483,7 @@ async def show_admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Affiche le menu d'administration"""
     is_enabled = access_manager.is_access_code_enabled()
     status_text = "✅ Activé" if is_enabled else "❌ Désactivé"
+    info_status = "✅ Activé" if CONFIG.get('info_button_enabled', True) else "❌ Désactivé"
 
     keyboard = [
         [InlineKeyboardButton("➕ Ajouter une catégorie", callback_data="add_category")],
@@ -479,6 +499,7 @@ async def show_admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("🏠 Modifier message d'accueil", callback_data="edit_welcome")],  
         [InlineKeyboardButton("🖼️ Modifier image bannière", callback_data="edit_banner_image")],
         [InlineKeyboardButton("ℹ️ Modifier les informations", callback_data="edit_info")],
+        [InlineKeyboardButton(f"ℹ️ Bouton Information: {info_status}", callback_data="toggle_info_button")],
         [InlineKeyboardButton("🔙 Retour à l'accueil", callback_data="back_to_home")]
     ]
 
@@ -738,6 +759,27 @@ async def handle_banner_image(update: Update, context: ContextTypes.DEFAULT_TYPE
     # Attendre 3 secondes et supprimer le message
     await asyncio.sleep(3)
     await success_msg.delete()
+
+    # Supprimer l'ancienne bannière si elle existe
+    if 'banner_message_id' in context.user_data:
+        try:
+            await context.bot.delete_message(
+                chat_id=update.effective_chat.id,
+                message_id=context.user_data['banner_message_id']
+            )
+        except:
+            pass
+
+    # Envoyer la nouvelle bannière
+    if CONFIG.get('banner_image'):
+        try:
+            banner_message = await context.bot.send_photo(
+                chat_id=update.effective_chat.id,
+                photo=CONFIG['banner_image']
+            )
+            context.user_data['banner_message_id'] = banner_message.message_id
+        except Exception as e:
+            print(f"Erreur lors de l'envoi de la bannière: {e}")
 
     return await show_admin_menu(update, context)
 
@@ -1192,6 +1234,73 @@ async def handle_normal_buttons(update: Update, context: ContextTypes.DEFAULT_TY
         else:
             await query.edit_message_text("❌ Vous n'êtes pas autorisé à accéder au menu d'administration.")
             return CHOOSING
+
+    elif query.data == "show_info_potato":
+        text = (
+            "🔒 <b>Ceci est un exemple de bouton avec texte</b>\n\n"
+            "<code>Possible de mettre un id SESSION par exemple.</code>"
+        )
+        keyboard = [[InlineKeyboardButton("🔙 Retour aux réseaux", callback_data="show_networks")]]
+        
+        await query.edit_message_text(
+            text=text,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode='HTML'
+        )
+        return CHOOSING
+
+    elif query.data == "toggle_info_button":
+        if str(query.from_user.id) not in ADMIN_IDS:
+            await query.answer("❌ Vous n'êtes pas autorisé à modifier ce paramètre.")
+            return CHOOSING
+        
+        # Inverser l'état actuel
+        CONFIG['info_button_enabled'] = not CONFIG.get('info_button_enabled', True)
+        
+        # Sauvegarder dans config.json
+        with open('config/config.json', 'w', encoding='utf-8') as f:
+            json.dump(CONFIG, f, indent=4)
+        
+        # Message de confirmation
+        status = "activé ✅" if CONFIG['info_button_enabled'] else "désactivé ❌"
+        await query.answer(f"Le bouton Information a été {status}")
+        
+        # Rafraîchir le menu admin
+        return await show_admin_menu(update, context)
+
+    elif query.data == "edit_info":
+        if str(query.from_user.id) not in ADMIN_IDS:
+            await query.answer("❌ Vous n'êtes pas autorisé à modifier ce paramètre.")
+            return CHOOSING
+
+        current_info = CONFIG.get('info_message', "Aucune information configurée.")
+        
+        await query.message.edit_text(
+            "📝 Envoyez le nouveau message d'information :\n"
+            "Vous pouvez utiliser le formatage HTML pour mettre en forme votre texte.\n\n"
+            "Message actuel :\n"
+            f"{current_info}",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("🔙 Annuler", callback_data="admin")
+            ]]),
+            parse_mode='HTML'
+        )
+        return WAITING_INFO_MESSAGE
+
+    elif query.data == "show_info":
+        info_text = CONFIG.get('info_message', 
+            "ℹ️ Aucune information n'a été configurée.\n"
+            "Les administrateurs peuvent ajouter des informations depuis le menu admin."
+        )
+
+        keyboard = [[InlineKeyboardButton("🔙 Retour", callback_data="back_to_home")]]
+
+        await query.message.edit_text(
+            text=info_text,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode='HTML'
+        )
+        return CHOOSING
 
     elif query.data == "edit_banner_image":
             msg = await query.message.edit_text(
@@ -2277,15 +2386,18 @@ async def handle_normal_buttons(update: Update, context: ContextTypes.DEFAULT_TY
                 [InlineKeyboardButton("📋 MENU", callback_data="show_categories")]
             ]
 
-            # Ajouter le bouton admin si l'utilisateur est administrateur
-            if str(update.effective_user.id) in ADMIN_IDS:
-                keyboard.append([InlineKeyboardButton("🔧 Menu Admin", callback_data="admin")])
 
             # Ajouter les boutons de contact et réseaux en colonne
             keyboard.extend([
                 [InlineKeyboardButton("📞 Contact Telegram", url=f"https://t.me/{CONFIG['contact_username']}")],
-                [InlineKeyboardButton("🌐 Réseaux", callback_data="show_networks")]
             ])
+
+            if CONFIG.get('info_button_enabled', True):
+                keyboard.append([InlineKeyboardButton("ℹ️ Information", callback_data="show_info")])
+
+            # Ajouter le bouton admin si l'utilisateur est administrateur
+            if str(update.effective_user.id) in ADMIN_IDS:
+                keyboard.append([InlineKeyboardButton("🔧 Menu Admin", callback_data="admin")])
 
             await query.message.edit_text(
                 text=welcome_text,
@@ -2540,7 +2652,7 @@ def main():
 
         application.add_handler(CallbackQueryHandler(show_networks, pattern="^show_networks$"))
         application.add_handler(CommandHandler("gencode", admin_generate_code))
-        application.add_handler(CommandHandler("listcodes", admin_list_codes))
+        application.add_handler(CommandHandler("listecodes", admin_list_codes))
         application.add_handler(conv_handler)
         application.add_handler(CallbackQueryHandler(show_info, pattern="^show_info$"))
         application.add_handler(CallbackQueryHandler(edit_info, pattern="^edit_info$"))
