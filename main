@@ -154,10 +154,6 @@ def print_catalog_debug():
                 if 'media' in product:
                     print(f"    Médias ({len(product['media'])}): {product['media']}")
 
-def setup_admin_handlers(self):
-    """Configuration des handlers pour les fonctionnalités admin"""
-    admin_features = AdminFeatures(self._users, self._banned_users) 
-
 # États de conversation
 WAITING_FOR_ACCESS_CODE = "WAITING_FOR_ACCESS_CODE"
 CHOOSING = "CHOOSING"
@@ -181,6 +177,7 @@ EDITING_CATEGORY = "EDITING_CATEGORY"
 WAITING_NEW_CATEGORY_NAME = "WAITING_NEW_CATEGORY_NAME"
 WAITING_BUTTON_NAME = "WAITING_BUTTON_NAME"
 WAITING_BUTTON_VALUE = "WAITING_BUTTON_VALUE"
+WAITING_BROADCAST_EDIT = "WAITING_BROADCAST_EDIT"
 
 # Charger le catalogue au démarrage
 CATALOG = load_catalog()
@@ -254,29 +251,18 @@ async def admin_generate_code(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text("❌ Cette commande est réservée aux administrateurs.")
         return
 
-    # Vérifier si l'argument "permanent" est présent
-    is_permanent = False
-    if context.args and context.args[0].lower() == "permanent":
-        is_permanent = True
-
-    code, expiration = access_manager.generate_code(update.effective_user.id, permanent=is_permanent)
+    code, expiration = access_manager.generate_code(update.effective_user.id)
     
-    if is_permanent:
-        await update.message.reply_text(
-            f"✅ Nouveau code permanent généré :\n\n"
-            f"Code: `{code}`\n"
-            f"Type: *Permanent* (n'expire jamais)",
-            parse_mode='Markdown'
-        )
-    else:
-        exp_date = datetime.fromisoformat(expiration)
-        exp_str = exp_date.strftime("%d/%m/%Y %H:%M")
-        await update.message.reply_text(
-            f"✅ Nouveau code généré :\n\n"
-            f"Code: `{code}`\n"
-            f"Expire le: {exp_str}",
-            parse_mode='Markdown'
-        )
+    # Formater l'expiration
+    exp_date = datetime.fromisoformat(expiration)
+    exp_str = exp_date.strftime("%d/%m/%Y %H:%M")
+    
+    await update.message.reply_text(
+        f"✅ Nouveau code généré :\n\n"
+        f"Code: `{code}`\n"
+        f"Expire le: {exp_str}",
+        parse_mode='Markdown'
+    )
 
 async def admin_list_codes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Liste tous les codes actifs (commande admin)"""
@@ -292,14 +278,10 @@ async def admin_list_codes(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     message = "📝 Codes actifs :\n\n"
     for code in active_codes:
-        if code.get("permanent", False):
-            message += f"Code: `{code['code']}`\n"
-            message += "Type: *Permanent*\n\n"
-        else:
-            exp_date = datetime.fromisoformat(code["expiration"])
-            exp_str = exp_date.strftime("%d/%m/%Y %H:%M")
-            message += f"Code: `{code['code']}`\n"
-            message += f"Expire le: {exp_str}\n\n"
+        exp_date = datetime.fromisoformat(code["expiration"])
+        exp_str = exp_date.strftime("%d/%m/%Y %H:%M")
+        message += f"Code: `{code['code']}`\n"
+        message += f"Expire le: {exp_str}\n\n"
 
     await update.message.reply_text(message, parse_mode='Markdown')
 
@@ -380,6 +362,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📋 Cliquez sur MENU pour voir les catégories"
     )
 
+    # Ajouter les boutons de contact et réseaux en colonne
+    keyboard.extend([
+        [InlineKeyboardButton("📱 Réseaux", callback_data="show_networks")]
+
+    ])
+
     # Ajouter le bouton admin si l'utilisateur est administrateur
     if str(update.effective_user.id) in ADMIN_IDS:
         keyboard.append([InlineKeyboardButton("🔧 Menu Admin", callback_data="admin")])
@@ -422,19 +410,19 @@ async def show_networks(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     keyboard = [
         [
-            InlineKeyboardButton("💭 Lien 1", url="https://www.google.fr/")
+            InlineKeyboardButton("💭 Tchat telegram", url="https://t.me/+dzjwvg5XKqNkZWE0")
         ],
 
         [
-            InlineKeyboardButton("🥔 Lien 2", url="https://www.google.fr/")
+            InlineKeyboardButton("🥔 Canal potato", url="https://doudlj.org/joinchat/QwqUM5gH7Q8VqO3SnS4YwA")
         ],
 
         [
-            InlineKeyboardButton("🔒 Bouton écrit", callback_data="show_info_potato")
+            InlineKeyboardButton("🔒 Session", callback_data="show_info_potato")
         ],
 
         [
-            InlineKeyboardButton("👻 Lien 3", url="https://www.google.fr/")
+            InlineKeyboardButton("👻 Snapchat", url="https://www.snapchat.com/add/lapharmacie6933?share_id=TCLVcQ_TWlk&locale=fr-FR")
         ],
         [InlineKeyboardButton("🔙 Retour", callback_data="back_to_home")]
     ]
@@ -501,9 +489,9 @@ async def show_admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("🛒 Modifier bouton Commander", callback_data="edit_order_button")],
         [InlineKeyboardButton("🏠 Modifier message d'accueil", callback_data="edit_welcome")],  
         [InlineKeyboardButton("🖼️ Modifier image bannière", callback_data="edit_banner_image")],
+        [InlineKeyboardButton("📢 Gestion annonces", callback_data="manage_broadcasts")],
         [InlineKeyboardButton("🔙 Retour à l'accueil", callback_data="back_to_home")]
     ]
-
     keyboard = await admin_features.add_user_buttons(keyboard)
 
     admin_text = (
@@ -536,6 +524,76 @@ async def show_admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     return CHOOSING
+
+async def show_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Affiche le message d'information"""
+    query = update.callback_query
+    await query.answer()
+
+    info_text = CONFIG.get('info_message', 
+        "ℹ️ Aucune information n'a été configurée.\n"
+        "Les administrateurs peuvent ajouter des informations depuis le menu admin."
+    )
+
+    keyboard = [[InlineKeyboardButton("🔙 Retour", callback_data="back_to_home")]]
+
+    await query.edit_message_text(
+        text=info_text,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode='HTML'
+    )
+    return CHOOSING
+
+async def edit_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Démarre l'édition du message d'information"""
+    query = update.callback_query
+    await query.answer()
+
+    current_info = CONFIG.get('info_message', "Aucune information configurée.")
+    
+    await query.edit_message_text(
+        "📝 Envoyez le nouveau message d'information :\n"
+        "Vous pouvez utiliser le formatage HTML pour mettre en forme votre texte.\n\n"
+        "Message actuel :\n"
+        f"{current_info}",
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton("🔙 Annuler", callback_data="admin")
+        ]]),
+        parse_mode='HTML'
+    )
+    return WAITING_INFO_MESSAGE
+
+async def handle_info_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Gère la réception du nouveau message d'information"""
+    new_info = update.message.text_html if hasattr(update.message, 'text_html') else update.message.text
+
+    # Sauvegarder le nouveau message dans la config
+    CONFIG['info_message'] = new_info
+    with open('config/config.json', 'w', encoding='utf-8') as f:
+        json.dump(CONFIG, f, indent=4)
+
+    # Supprimer le message de l'utilisateur et le message précédent
+    try:
+        await update.message.delete()
+        await context.bot.delete_message(
+            chat_id=update.effective_chat.id,
+            message_id=update.message.message_id - 1
+        )
+    except Exception as e:
+        print(f"Erreur lors de la suppression des messages : {e}")
+
+    # Message de confirmation
+    success_msg = await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text="✅ Message d'information mis à jour avec succès !",
+        parse_mode='HTML'
+    )
+
+    # Attendre 3 secondes et supprimer le message de confirmation
+    await asyncio.sleep(3)
+    await success_msg.delete()
+
+    return await show_admin_menu(update, context)
 
 async def handle_new_category_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Gère la modification du nom d'une catégorie"""
@@ -584,6 +642,43 @@ async def handle_new_category_name(update: Update, context: ContextTypes.DEFAULT
         return CHOOSING
 
     return EDITING_CATEGORY
+    
+async def show_custom_buttons_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Affiche le menu de gestion des boutons personnalisés"""
+    query = update.callback_query
+    await query.answer()
+
+    keyboard = [
+        [InlineKeyboardButton("➕ Ajouter un bouton", callback_data="add_custom_button")],
+        [InlineKeyboardButton("❌ Supprimer un bouton", callback_data="list_buttons_delete")],
+        [InlineKeyboardButton("✏️ Modifier un bouton", callback_data="list_buttons_edit")],
+        [InlineKeyboardButton("🔙 Retour", callback_data="admin")]
+    ]
+
+    await query.edit_message_text(
+        "🔧 Gestion des boutons personnalisés\n\n"
+        "Choisissez une action :",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+    return CHOOSING
+
+async def start_add_custom_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Commence le processus d'ajout d'un bouton personnalisé"""
+    query = update.callback_query
+    await query.answer()
+    
+    message = await query.edit_message_text(
+        "➕ Ajout d'un nouveau bouton\n\n"
+        "Envoyez le nom du bouton (exemple: '🌟 Mon Bouton') :",
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton("🔙 Annuler", callback_data="show_custom_buttons")
+        ]])
+    )
+    
+    # Stocker l'ID du message pour le supprimer plus tard
+    context.user_data['messages_to_delete'] = [message.message_id]
+    
+    return WAITING_BUTTON_NAME
 
 async def handle_order_button_config(update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Gère la configuration du bouton Commander"""
@@ -653,43 +748,6 @@ async def handle_order_button_config(update: Update, context: ContextTypes.DEFAU
         except Exception as e:
             print(f"Erreur dans handle_order_button_config: {e}")
             return WAITING_ORDER_BUTTON_CONFIG
-
-async def show_custom_buttons_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Affiche le menu de gestion des boutons personnalisés"""
-    query = update.callback_query
-    await query.answer()
-
-    keyboard = [
-        [InlineKeyboardButton("➕ Ajouter un bouton", callback_data="add_custom_button")],
-        [InlineKeyboardButton("❌ Supprimer un bouton", callback_data="list_buttons_delete")],
-        [InlineKeyboardButton("✏️ Modifier un bouton", callback_data="list_buttons_edit")],
-        [InlineKeyboardButton("🔙 Retour", callback_data="admin")]
-    ]
-
-    await query.edit_message_text(
-        "🔧 Gestion des boutons personnalisés\n\n"
-        "Choisissez une action :",
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
-    return CHOOSING
-
-async def start_add_custom_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Commence le processus d'ajout d'un bouton personnalisé"""
-    query = update.callback_query
-    await query.answer()
-    
-    message = await query.edit_message_text(
-        "➕ Ajout d'un nouveau bouton\n\n"
-        "Envoyez le nom du bouton (exemple: '🌟 Mon Bouton') :",
-        reply_markup=InlineKeyboardMarkup([[
-            InlineKeyboardButton("🔙 Annuler", callback_data="show_custom_buttons")
-        ]])
-    )
-    
-    # Stocker l'ID du message pour le supprimer plus tard
-    context.user_data['messages_to_delete'] = [message.message_id]
-    
-    return WAITING_BUTTON_NAME
 
 async def handle_button_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Gère la réception du nom du bouton"""
@@ -1039,18 +1097,6 @@ async def handle_banner_image(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     return await show_admin_menu(update, context)
 
-
-    async def check_user_ban(self, update: Update) -> bool:
-        """Vérifie si l'utilisateur est banni"""
-        user_id = update.effective_user.id
-        if user_id in self._banned_users:
-            await update.callback_query.answer(
-                "⛔️ Vous avez été banni de l'utilisation du bot.",
-                show_alert=True
-            )
-            return True
-        return False
-
 async def handle_category_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Gère l'ajout d'une nouvelle catégorie"""
     category_name = update.message.text.strip()
@@ -1308,8 +1354,6 @@ async def finish_product_media(update: Update, context: ContextTypes.DEFAULT_TYP
         [InlineKeyboardButton("🔙 Retour à l'accueil", callback_data="back_to_home")]
     ]
 
-    keyboard = await admin_features.add_user_buttons(keyboard)
-
     try:
         await query.message.delete()
     except:
@@ -1505,8 +1549,8 @@ async def handle_normal_buttons(update: Update, context: ContextTypes.DEFAULT_TY
 
     elif query.data == "show_info_potato":
         text = (
-            "🔒 <b>Ceci est un exemple de bouton avec texte</b>\n\n"
-            "<code>Possible de mettre un id SESSION par exemple.</code>"
+            "🔒 <b>Voici notre ID Session pour passer commande :</b>\n\n"
+            "<code>051dafdaccdb8635e039f09f2206ab3be9a05d0bb5ec55d60a699192b5a5b4854e</code>"
         )
         keyboard = [[InlineKeyboardButton("🔙 Retour aux réseaux", callback_data="show_networks")]]
         
@@ -2793,22 +2837,25 @@ async def handle_normal_buttons(update: Update, context: ContextTypes.DEFAULT_TY
                 "📋 Cliquez sur MENU pour voir les catégories"
             )
 
-            # Nouveau clavier simplifié pour l'accueil
+            # Commencer avec le bouton MENU
             keyboard = [
                 [InlineKeyboardButton("📋 MENU", callback_data="show_categories")]
             ]
 
+            # Ajouter les boutons personnalisés
             with open('config/config.json', 'r') as f:
                 config = json.load(f)
-    
-            # Ajouter les boutons personnalisés
+
             for button in config.get('custom_buttons', []):
                 if button['type'] == 'url':
                     keyboard.append([InlineKeyboardButton(button['name'], url=button['value'])])
                 elif button['type'] == 'text':
                     keyboard.append([InlineKeyboardButton(button['name'], callback_data=f"custom_text_{button['id']}")])
 
-            # Ajouter le bouton admin si l'utilisateur est administrateur
+            # Ajouter le bouton Réseaux avant le bouton Admin
+            keyboard.append([InlineKeyboardButton("📱 Réseaux", callback_data="show_networks")])
+
+            # Ajouter le bouton admin en dernier si l'utilisateur est administrateur
             if str(update.effective_user.id) in ADMIN_IDS:
                 keyboard.append([InlineKeyboardButton("🔧 Menu Admin", callback_data="admin")])
 
@@ -2862,7 +2909,7 @@ async def get_file_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 InlineKeyboardButton("💭 Canal telegram", url="https://t.me/+aHbA9_8tdTQwYThk")
             ],
             [
-                InlineKeyboardButton("🥔 Contact potato", url="https://doudlj.org/joinchat/5ZEmn25bOsTR7f-aYdvC0Q"),
+                InlineKeyboardButton("🥔 Contact potato", url="https://dlj199.org/christianDry547"),
                 InlineKeyboardButton("📱 Instagram", url="https://www.instagram.com/christiandry.54?igsh=MWU1dXNrbXdpMzllNA%3D%3D&utm_source=qr")
             ],
             [
@@ -2935,7 +2982,7 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             print(f"Une erreur s'est produite: {context.error}")
     except Exception as e:
         print(f"Erreur dans le gestionnaire d'erreurs: {e}")
-
+        
 def main():
     """Fonction principale du bot"""
     try:
@@ -2971,6 +3018,7 @@ def main():
             ],
             states={
                 CHOOSING: [
+                    CallbackQueryHandler(admin_features.handle_user_management, pattern="^user_page_[0-9]+$"),
                     CallbackQueryHandler(list_buttons_for_editing, pattern="^list_buttons_edit$"),
                     CallbackQueryHandler(handle_button_editing, pattern="^edit_button_[^_]+$"),
                     CallbackQueryHandler(start_edit_button_name, pattern="^edit_button_name_"),
@@ -2978,10 +3026,12 @@ def main():
                     CallbackQueryHandler(start_add_custom_button, pattern="^add_custom_button$"),
                     CallbackQueryHandler(list_buttons_for_deletion, pattern="^list_buttons_delete$"),
                     CallbackQueryHandler(handle_button_deletion, pattern="^delete_button_"),
-                    CallbackQueryHandler(admin_features.handle_user_management, pattern="^users$"),
-                    CallbackQueryHandler(admin_features.handle_user_click, pattern="^ban_"),
-                    CallbackQueryHandler(admin_features.handle_ban_confirmation, pattern="^confirm_ban_"),
-                    CallbackQueryHandler(admin_features.handle_user_management, pattern="^cancel_ban$"),
+                    CallbackQueryHandler(admin_features.manage_broadcasts, pattern="^manage_broadcasts$"),
+                    CallbackQueryHandler(admin_features.edit_broadcast_content, pattern="^edit_broadcast_content_"),
+                    CallbackQueryHandler(admin_features.edit_broadcast, pattern="^edit_broadcast_"),
+                    CallbackQueryHandler(admin_features.resend_broadcast, pattern="^resend_broadcast_"),
+                    CallbackQueryHandler(admin_features.delete_broadcast, pattern="^delete_broadcast_"),
+                    CallbackQueryHandler(admin_features.handle_user_management, pattern="^manage_users$"),
                     CallbackQueryHandler(handle_normal_buttons),
                 ],
                 WAITING_CATEGORY_NAME: [
@@ -3070,6 +3120,13 @@ def main():
                     ),
                     CallbackQueryHandler(handle_normal_buttons)
                 ],
+                WAITING_BROADCAST_EDIT: [
+                    MessageHandler(
+                        (filters.TEXT | filters.PHOTO | filters.VIDEO) & ~filters.COMMAND,
+                        admin_features.handle_broadcast_edit
+                    ),
+                    CallbackQueryHandler(handle_normal_buttons)
+                ],
             },
             fallbacks=[
                 CommandHandler('start', start),
@@ -3079,7 +3136,17 @@ def main():
             persistent=False,
         )
 
+        application.add_handler(CommandHandler("ban", admin_features.handle_ban_command))
+        application.add_handler(CallbackQueryHandler(
+            admin_features.show_banned_users,
+            pattern="^show_banned$"
+        ))
+        application.add_handler(CallbackQueryHandler(
+            admin_features.handle_unban_callback,
+            pattern="^unban_"
+        ))
         application.add_handler(CallbackQueryHandler(show_networks, pattern="^show_networks$"))
+        application.add_handler(CallbackQueryHandler(start, pattern="^start_cmd$"))
         application.add_handler(CommandHandler("gencode", admin_generate_code))
         application.add_handler(CommandHandler("listecodes", admin_list_codes))
         application.add_handler(conv_handler)
