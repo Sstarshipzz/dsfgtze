@@ -361,13 +361,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "<b>Pour changer ce message d accueil, rendez vous dans l onglet admin.</b>\n"
         "📋 Cliquez sur MENU pour voir les catégories"
     )
-
-    # Ajouter les boutons de contact et réseaux en colonne
-    keyboard.extend([
-        [InlineKeyboardButton("📱 Réseaux", callback_data="show_networks")]
-
-    ])
-
     # Ajouter le bouton admin si l'utilisateur est administrateur
     if str(update.effective_user.id) in ADMIN_IDS:
         keyboard.append([InlineKeyboardButton("🔧 Menu Admin", callback_data="admin")])
@@ -410,19 +403,22 @@ async def show_networks(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     keyboard = [
         [
-            InlineKeyboardButton("💭 Tchat telegram", url="https://t.me/+dzjwvg5XKqNkZWE0")
+            InlineKeyboardButton("💭 Canal telegram", url="https://t.me/+aHbA9_8tdTQwYThk")
         ],
 
         [
-            InlineKeyboardButton("🥔 Canal potato", url="https://doudlj.org/joinchat/QwqUM5gH7Q8VqO3SnS4YwA")
+            InlineKeyboardButton("🥔 Contact potato", url="https://dlj199.org/christianDry547")
+        ],
+        [
+            InlineKeyboardButton("📱 Instagram", url="https://www.instagram.com/christiandry.54?igsh=MWU1dXNrbXdpMzllNA%3D%3D&utm_source=qr")
         ],
 
         [
-            InlineKeyboardButton("🔒 Session", callback_data="show_info_potato")
+            InlineKeyboardButton("🌐 Signal", url="https://signal.group/#CjQKIJNEETZNr9_LRMvShQbblk_NUdDyabA7e_eyUQY6-ptsEhBSpXex0cjIoOEYQ4H3D8K5")
         ],
 
         [
-            InlineKeyboardButton("👻 Snapchat", url="https://www.snapchat.com/add/lapharmacie6933?share_id=TCLVcQ_TWlk&locale=fr-FR")
+            InlineKeyboardButton("👻 Snapchat", url="https://snapchat.com/t/0HumwTKi")
         ],
         [InlineKeyboardButton("🔙 Retour", callback_data="back_to_home")]
     ]
@@ -1549,8 +1545,8 @@ async def handle_normal_buttons(update: Update, context: ContextTypes.DEFAULT_TY
 
     elif query.data == "show_info_potato":
         text = (
-            "🔒 <b>Voici notre ID Session pour passer commande :</b>\n\n"
-            "<code>051dafdaccdb8635e039f09f2206ab3be9a05d0bb5ec55d60a699192b5a5b4854e</code>"
+            "🔒 <b>Ceci est un exemple de bouton avec texte</b>\n\n"
+            "<code>Possible de mettre un id SESSION par exemple.</code>"
         )
         keyboard = [[InlineKeyboardButton("🔙 Retour aux réseaux", callback_data="show_networks")]]
         
@@ -2852,8 +2848,6 @@ async def handle_normal_buttons(update: Update, context: ContextTypes.DEFAULT_TY
                 elif button['type'] == 'text':
                     keyboard.append([InlineKeyboardButton(button['name'], callback_data=f"custom_text_{button['id']}")])
 
-            # Ajouter le bouton Réseaux avant le bouton Admin
-            keyboard.append([InlineKeyboardButton("📱 Réseaux", callback_data="show_networks")])
 
             # Ajouter le bouton admin en dernier si l'utilisateur est administrateur
             if str(update.effective_user.id) in ADMIN_IDS:
